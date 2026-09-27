@@ -545,15 +545,48 @@
     }
   }
 
+  // Progressively less demanding constraint sets, tried in order until one
+  // succeeds. Ported from the barcode-scanner app's acquireCamera(): some
+  // devices/webcams reject a specific resolution or frame rate outright
+  // (OverconstrainedError) even though the camera itself is fine, so a
+  // single fixed getUserMedia() call can fail where a fallback chain
+  // wouldn't. Audio constraints stay constant; only video is relaxed.
+  function acquireCamera() {
+    var AUDIO = { echoCancellation: true, noiseSuppression: true };
+    var attempts = [
+      { name: '1280x720 front', v: { facingMode: { ideal: 'user' },
+          width: { ideal: 1280 }, height: { ideal: 720 },
+          frameRate: { ideal: 30, max: 30 } } },
+      { name: '1280x720 any', v: { width: { ideal: 1280 }, height: { ideal: 720 } } },
+      { name: '640x480 any', v: { width: { ideal: 640 }, height: { ideal: 480 } } },
+      { name: 'default video', v: true }
+    ];
+
+    var i = 0, lastErr = null;
+    function tryNext() {
+      if (i >= attempts.length) return Promise.reject(lastErr || new Error('No camera available'));
+      var a = attempts[i++];
+      return navigator.mediaDevices.getUserMedia({ audio: AUDIO, video: a.v }).then(function (s) {
+        var track = s.getVideoTracks()[0];
+        var st = (track && track.getSettings) ? track.getSettings() : {};
+        console.log('Camera ' + a.name + ' -> ' + (st.width || '?') + 'x' + (st.height || '?') +
+          (st.frameRate ? ' @' + Math.round(st.frameRate) : ''));
+        return s;
+      }, function (err) {
+        lastErr = err;
+        console.warn('Camera ' + a.name + ' failed: ' + (err.name || err.message || 'error'));
+        return tryNext();
+      });
+    }
+    return tryNext();
+  }
+
   var mediaPromise = null;
 
   function getMedia() {
     if (localStream) return Promise.resolve(localStream);
     if (mediaPromise) return mediaPromise;
-    mediaPromise = navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: { echoCancellation: true, noiseSuppression: true }
-    }).then(function (stream) {
+    mediaPromise = acquireCamera().then(function (stream) {
       mediaPromise = null;
       localStream = stream;
       camTrack = stream.getVideoTracks()[0];
