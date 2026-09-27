@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>WebRTC Conference</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #0d1117; color: #e6edf3;
+    display: flex; flex-direction: column;
+  }
+  button {
+    background: #21262d; border: 1px solid #30363d; color: #e6edf3;
+    padding: 9px 14px; border-radius: 6px; cursor: pointer;
+    font-size: 14px; transition: background .12s;
+  }
+  button:hover:not(:disabled) { background: #30363d; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: #238636; border-color: #2ea043; }
+  button.primary:hover:not(:disabled) { background: #2ea043; }
+  button.danger { background: #da3633; border-color: #f85149; }
+  button.danger:hover:not(:disabled) { background: #f85149; }
+  input[type=text] {
+    background: #0d1117; border: 1px solid #30363d; color: #e6edf3;
+    padding: 9px 12px; border-radius: 6px; outline: none; font-size: 14px;
+  }
+  input[type=text]:focus { border-color: #388bfd; }
+
+  /* ---------- Lobby ---------- */
+  #lobby {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    background: #161b22; border: 1px solid #30363d;
+    border-radius: 12px; padding: 28px;
+    width: 100%; max-width: 420px;
+  }
+  .card h1 { margin: 0 0 6px; font-size: 22px; }
+  .card p { margin: 0 0 22px; color: #8b949e; font-size: 13px; line-height: 1.5; }
+  .row { display: flex; gap: 8px; }
+  .row input { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: 2px; }
+  .or { text-align: center; color: #484f58; font-size: 12px; margin: 16px 0; }
+  #lobbyStatus { margin-top: 16px; font-size: 12px; color: #f85149; min-height: 16px; }
+
+  /* ---------- Room ---------- */
+  #room { flex: 1; display: none; flex-direction: column; min-height: 0; }
+  #room.active { display: flex; }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; background: #161b22;
+    border-bottom: 1px solid #30363d; flex-wrap: wrap;
+  }
+  header .code {
+    background: #0d1117; border: 1px solid #30363d;
+    padding: 5px 12px; border-radius: 6px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 14px; letter-spacing: 3px;
+  }
+  header .status { margin-left: auto; font-size: 12px; color: #8b949e; }
+  main { flex: 1; display: flex; min-height: 0; }
+  #videos {
+    flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    padding: 12px; min-width: 0; min-height: 0;
+  }
+  .tile {
+    position: relative; background: #000;
+    border-radius: 10px; overflow: hidden;
+    border: 1px solid #30363d; min-height: 0;
+  }
+  .tile video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tile .label {
+    position: absolute; left: 8px; bottom: 8px;
+    background: rgba(0,0,0,.6); padding: 3px 10px;
+    border-radius: 999px; font-size: 11px;
+  }
+  #sidebar {
+    width: 320px; display: flex; flex-direction: column;
+    border-left: 1px solid #30363d; min-height: 0;
+  }
+  #chatLog {
+    flex: 1; overflow-y: auto; padding: 12px;
+    font-size: 13px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .msg { padding: 7px 10px; border-radius: 8px; max-width: 90%; overflow-wrap: anywhere; line-height: 1.35; }
+  .msg.me { background: #1f6feb33; border: 1px solid #1f6feb66; align-self: flex-end; }
+  .msg.them { background: #21262d; border: 1px solid #30363d; align-self: flex-start; }
+  .msg.sys { background: transparent; color: #8b949e; font-style: italic; align-self: center; font-size: 11px; }
+  #chatBar { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #30363d; }
+  #chatBar input { flex: 1; min-width: 0; }
+  footer {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    padding: 10px 16px; background: #161b22;
+    border-top: 1px solid #30363d;
+  }
+  @media (max-width: 900px) {
+    main { flex-direction: column; }
+    #videos { grid-template-columns: 1fr; }
+    #sidebar { width: auto; height: 240px; border-left: none; border-top: 1px solid #30363d; }
+  }
+
+  /* ---------- Network diagnostics ---------- */
+  .diag {
+    display: none; border-radius: 8px; padding: 10px 12px;
+    font-size: 12px; line-height: 1.5; margin-top: 16px;
+  }
+  .diag.show { display: block; }
+  .diag.checking { background: #161b22; border: 1px solid #30363d; color: #8b949e; }
+  .diag.good { background: #0d2818; border: 1px solid #2ea043; color: #7ee2a8; }
+  .diag.warn { background: #2b2111; border: 1px solid #d29922; color: #f0c674; }
+  .diag.bad  { background: #2b1113; border: 1px solid #f85149; color: #ffb3ae; }
+  .diag .retest {
+    display: block; margin-top: 6px; background: none; border: none;
+    color: inherit; text-decoration: underline; padding: 0; font-size: 11px; cursor: pointer;
+  }
+  .badge {
+    font-size: 11px; padding: 3px 10px; border-radius: 999px;
+    border: 1px solid #30363d; background: #21262d; color: #8b949e;
+  }
+  .badge.direct { border-color: #2ea043; color: #3fb950; }
+  .badge.relay  { border-color: #d29922; color: #e3b341; }
+  .badge.bad    { border-color: #f85149; color: #f85149; }
+  .advToggle {
+    background: none; border: none; color: #58a6ff; font-size: 12px;
+    cursor: pointer; padding: 0; margin-top: 16px; text-decoration: underline;
+  }
+  .advPanel {
+    display: none; margin-top: 12px; border-top: 1px solid #30363d;
+    padding-top: 12px; text-align: left;
+  }
+  .advPanel.show { display: block; }
+  .advPanel h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: #8b949e; margin: 14px 0 6px; }
+  .advPanel h3:first-child { margin-top: 0; }
+  .advPanel label { display: block; font-size: 11px; color: #8b949e; margin: 8px 0 4px; }
+  .advPanel input[type=text] { width: 100%; text-transform: none; letter-spacing: normal; }
+  .advPanel .hint { font-size: 11px; color: #484f58; margin: 0 0 4px; line-height: 1.5; }
+  .checkbox-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8b949e; margin-top: 10px; }
+  .checkbox-row input { margin: 0; }
+  .advBtnRow { display: flex; gap: 8px; margin-top: 14px; }
+</style>
+</head>
+<body>
+
+<!-- ============ LOBBY ============ -->
+<div id="lobby">
+  <div class="card">
+    <h1>WebRTC Conference</h1>
+    <p>Two-person video call with chat and screen sharing. Create a room, then share the code with the other person.</p>
+    <button id="createBtn" class="primary" style="width:100%">Create a room</button>
+    <div class="or">or join an existing room</div>
+    <div class="row">
+      <input id="joinInput" type="text" placeholder="Room code" maxlength="6" autocomplete="off" />
+      <button id="joinBtn">Join</button>
+    </div>
+    <p id="lobbyStatus"></p>
+
+    <div id="netDiag" class="diag checking">Checking your network for STUN/TURN connectivity…</div>
+
+    <button id="advToggleBtn" class="advToggle" type="button">Advanced network settings</button>
+    <div id="advPanel" class="advPanel">
+      <p class="hint">Optional. This app uses public Google STUN servers, a shared free TURN relay (Open Relay/Metered, capped at 20&nbsp;GB/month), and the public PeerJS signaling cloud. Some corporate, school or hotel networks block one or more of these. If calls keep failing, point the app at your own servers instead.</p>
+
+      <h3>Your own TURN relay</h3>
+      <label>TURN URL (e.g. turn:your-server:443?transport=tcp)</label>
+      <input type="text" id="turnUrl" placeholder="turn:your-server:443?transport=tcp" />
+      <label>Username</label>
+      <input type="text" id="turnUser" placeholder="username" />
+      <label>Credential</label>
+      <input type="text" id="turnCred" placeholder="credential" />
+
+      <h3>Your own signaling server (self-hosted PeerServer)</h3>
+      <label>Host</label>
+      <input type="text" id="signalHost" placeholder="peer.yourdomain.com" />
+      <label>Port</label>
+      <input type="text" id="signalPort" placeholder="443" />
+      <label>Path</label>
+      <input type="text" id="signalPath" placeholder="/" />
+      <label>Key</label>
+      <input type="text" id="signalKey" placeholder="peerjs" />
+
+      <label class="checkbox-row"><input type="checkbox" id="forceRelay" /> Force relay-only mode (troubleshooting: refuses direct P2P, always routes through TURN)</label>
+
+      <div class="advBtnRow">
+        <button id="saveAdvBtn" type="button" class="primary">Save &amp; re-test</button>
+        <button id="clearAdvBtn" type="button">Reset to defaults</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ROOM ============ -->
+<div id="room">
+  <header>
+    <span>Room</span>
+    <span class="code" id="roomCode">------</span>
+    <button id="copyBtn" title="Copy room code">Copy</button>
+    <span class="badge" id="netBadge" hidden>–</span>
+    <span class="status" id="status">Idle</span>
+  </header>
+  <main>
+    <div id="videos">
+      <div class="tile">
+        <video id="localVideo" autoplay muted playsinline></video>
+        <span class="label">You</span>
+      </div>
+      <div class="tile">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <span class="label">Peer</span>
+      </div>
+    </div>
+    <aside id="sidebar">
+      <div id="chatLog"></div>
+      <div id="chatBar">
+        <input id="chatInput" type="text" placeholder="Message…" disabled />
+        <button id="sendBtn" disabled>Send</button>
+      </div>
+    </aside>
+  </main>
+  <footer>
+    <button id="camBtn" disabled>Camera: On</button>
+    <button id="micBtn" disabled>Mic: On</button>
+    <button id="shareBtn" disabled>Share screen + audio</button>
+    <button id="stopShareBtn" class="danger" hidden>Stop sharing</button>
+    <button id="reconnectBtn" hidden>Reconnect now</button>
+    <button id="hangupBtn" class="danger" style="margin-left:auto">Leave</button>
+  </footer>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  var els = {
+    lobby: $('lobby'), room: $('room'),
+    createBtn: $('createBtn'), joinBtn: $('joinBtn'), joinInput: $('joinInput'),
+    lobbyStatus: $('lobbyStatus'),
+    roomCode: $('roomCode'), copyBtn: $('copyBtn'), status: $('status'),
+    localVideo: $('localVideo'), remoteVideo: $('remoteVideo'),
+    chatLog: $('chatLog'), chatInput: $('chatInput'), sendBtn: $('sendBtn'),
+    camBtn: $('camBtn'), micBtn: $('micBtn'),
+    shareBtn: $('shareBtn'), stopShareBtn: $('stopShareBtn'),
+    hangupBtn: $('hangupBtn'), reconnectBtn: $('reconnectBtn'),
+    netBadge: $('netBadge'), netDiag: $('netDiag'),
+    advToggleBtn: $('advToggleBtn'), advPanel: $('advPanel'),
+    turnUrl: $('turnUrl'), turnUser: $('turnUser'), turnCred: $('turnCred'),
+    signalHost: $('signalHost'), signalPort: $('signalPort'),
+    signalPath: $('signalPath'), signalKey: $('signalKey'),
+    forceRelay: $('forceRelay'),
+    saveAdvBtn: $('saveAdvBtn'), clearAdvBtn: $('clearAdvBtn')
+  };
+
+  var PREFIX = 'wrtc2-';   // namespaces our room IDs on the public PeerJS cloud
+  var LS_KEY = 'wrtc2-advanced-settings';
+
+  /* ---------------- built-in STUN/TURN (public, shared, rate-limited) ---------------- */
+  // STUN only tells you your public IP; it cannot get media through a
+  // symmetric-NAT/strict-firewall network. TURN relays the actual media,
+  // which is what makes calls work on locked-down corporate/school/hotel
+  // networks. We include TURN over UDP, TCP and TLS(443) so there's a
+  // path through firewalls that only allow outbound 443, or that do deep
+  // packet inspection (turns: on 443 looks like ordinary HTTPS).
+  var BUILTIN_STUN = [
+    'stun:stun.l.google.com:19302',
+    'stun:stun1.l.google.com:19302',
+    'stun:stun2.l.google.com:19302'
+  ];
+  var BUILTIN_TURN = [
+    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:80?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+  ];
+
+  /* ---------------- advanced (user-overridable) settings ---------------- */
+
+  function loadAdv() {
+    try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; }
+    catch (e) { return {}; }
+  }
+  function saveAdv(s) {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch (e) {}
+  }
+
+  function buildIceServers() {
+    var adv = loadAdv();
+    var servers = [{ urls: BUILTIN_STUN }].concat(BUILTIN_TURN);
+    if (adv.turnUrl) {
+      servers.push({ urls: adv.turnUrl, username: adv.turnUser || '', credential: adv.turnCred || '' });
+    }
+    return servers;
+  }
+
+  function buildPeerOpts() {
+    var adv = loadAdv();
+    var opts = {
+      debug: 1,
+      config: {
+        iceServers: buildIceServers(),
+        iceCandidatePoolSize: 4
+      }
+    };
+    if (adv.forceRelay) opts.config.iceTransportPolicy = 'relay';
+    if (adv.signalHost) {
+      opts.host = adv.signalHost;
+      opts.port = adv.signalPort ? parseInt(adv.signalPort, 10) : 443;
+      opts.path = adv.signalPath || '/';
+      opts.secure = true;
+      if (adv.signalKey) opts.key = adv.signalKey;
+    }
+    return opts;
+  }
+
+  /* ---------------- session state ---------------- */
+  var peer = null;
+  var role = null;             // 'host' | 'guest'
+  var roomCode = null;
+  var localStream = null;
+  var remoteStream = null;
+  var call = null;
+  var conn = null;
+  var screenStream = null;
+  var screenAudioSender = null;
+  var camTrack = null;
+  var micTrack = null;
+  var camOn = true;
+  var micOn = true;
+
+  /* ---------------- helpers ---------------- */
+
+  function randomCode() {
+    var alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    var s = '';
+    for (var i = 0; i < 6; i++) s += alphabet[Math.floor(Math.random() * alphabet.length)];
+    return s;
+  }
+
+  function setStatus(t) { els.status.textContent = t; }
+  function lobbyError(t) { els.lobbyStatus.textContent = t || ''; }
+
+  function addMsg(cls, who, text) {
+    var row = document.createElement('div');
+    row.className = 'msg ' + cls;
+    if (who) {
+      var b = document.createElement('b');
+      b.textContent = who + ': ';
+      row.appendChild(b);
+    }
+    row.appendChild(document.createTextNode(text));
+    els.chatLog.appendChild(row);
+    els.chatLog.scrollTop = els.chatLog.scrollHeight;
+  }
+  function sys(t) { addMsg('sys', null, t); }
+
+  /* ---------------- capability checks ---------------- */
+
+  function checkCapabilities() {
+    var problems = [];
+    if (!window.isSecureContext) {
+      problems.push('This page is not loaded over HTTPS (or localhost) — browsers block camera/microphone access outside a secure context.');
+    }
+    if (!window.RTCPeerConnection) {
+      problems.push('This browser does not support WebRTC at all.');
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      problems.push('This browser does not support camera/microphone access (getUserMedia).');
+    }
+    if (problems.length) {
+      lobbyError(problems.join(' '));
+      els.createBtn.disabled = true;
+      els.joinBtn.disabled = true;
+      els.netDiag.className = 'diag show bad';
+      els.netDiag.textContent = 'This browser/page cannot run video calls at all — see the message above.';
+      return false;
+    }
+    return true;
+  }
+
+  /* ---------------- network diagnostics ---------------- */
+  // Opens a throwaway RTCPeerConnection using the same ICE servers the real
+  // call will use, and watches what *kind* of ICE candidates it can gather.
+  // No STUN/TURN reachable at all = the network almost certainly blocks
+  // WebRTC outright. STUN but no TURN = fine for most networks, but will
+  // fail if either side is behind a strict/symmetric-NAT firewall. TURN
+  // reachable = a relay path exists, so calls should work even through
+  // strict corporate/school firewalls (at some cost to latency/quality).
+
+  function diagnoseNetwork(iceServers, timeoutMs) {
+    return new Promise(function (resolve) {
+      var types = { host: false, srflx: false, relay: false };
+      var pc;
+      try {
+        pc = new RTCPeerConnection({ iceServers: iceServers });
+      } catch (e) {
+        resolve(types);
+        return;
+      }
+      var done = false;
+      var timer = setTimeout(finish, timeoutMs);
+
+      function finish() {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        try { pc.close(); } catch (e) {}
+        resolve(types);
+      }
+
+      pc.onicecandidate = function (e) {
+        if (!e.candidate) { finish(); return; }
+        var typ = e.candidate.type;
+        if (!typ && e.candidate.candidate) {
+          var m = /\styp\s(\w+)/.exec(e.candidate.candidate);
+          typ = m ? m[1] : null;
+        }
+        if (typ && Object.prototype.hasOwnProperty.call(types, typ)) types[typ] = true;
+      };
+      pc.onicegatheringstatechange = function () {
+        if (pc.iceGatheringState === 'complete') finish();
+      };
+
+      try { pc.createDataChannel('probe'); } catch (e) {}
+      pc.createOffer().then(function (offer) {
+        return pc.setLocalDescription(offer);
+      }).catch(finish);
+    });
+  }
+
+  function renderDiagnosis(types) {
+    els.netDiag.className = 'diag show';
+    if (types.relay) {
+      els.netDiag.classList.add('good');
+      els.netDiag.innerHTML = '✓ A TURN relay is reachable from this network. Calls should work even through strict corporate/school firewalls or VPNs.';
+    } else if (types.srflx) {
+      els.netDiag.classList.add('warn');
+      els.netDiag.innerHTML = '⚠ STUN works, but no TURN relay could be reached. This is normally fine on home and mobile networks, but the call may fail if you or the other person are behind a strict corporate/school firewall or VPN. Consider adding your own TURN server below.';
+    } else {
+      els.netDiag.classList.add('bad');
+      els.netDiag.innerHTML = '✗ Neither STUN nor TURN could be reached at all. This network (corporate firewall, school network, or some VPNs) is very likely blocking WebRTC outright — a call will probably not work from here. Try mobile data, a different network, or your own TURN/signaling server below.';
+    }
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'retest';
+    btn.textContent = 'Re-test network';
+    btn.addEventListener('click', runDiagnostics);
+    els.netDiag.appendChild(btn);
+  }
+
+  function runDiagnostics() {
+    els.netDiag.className = 'diag show checking';
+    els.netDiag.textContent = 'Checking your network for STUN/TURN connectivity…';
+    diagnoseNetwork(buildIceServers(), 6000).then(renderDiagnosis);
+  }
+
+  /* ---------------- advanced settings panel ---------------- */
+
+  (function initAdvPanel() {
+    var adv = loadAdv();
+    els.turnUrl.value = adv.turnUrl || '';
+    els.turnUser.value = adv.turnUser || '';
+    els.turnCred.value = adv.turnCred || '';
+    els.signalHost.value = adv.signalHost || '';
+    els.signalPort.value = adv.signalPort || '';
+    els.signalPath.value = adv.signalPath || '';
+    els.signalKey.value = adv.signalKey || '';
+    els.forceRelay.checked = !!adv.forceRelay;
+  })();
+
+  els.advToggleBtn.addEventListener('click', function () {
+    els.advPanel.classList.toggle('show');
+  });
+
+  els.saveAdvBtn.addEventListener('click', function () {
+    saveAdv({
+      turnUrl: els.turnUrl.value.trim(),
+      turnUser: els.turnUser.value.trim(),
+      turnCred: els.turnCred.value.trim(),
+      signalHost: els.signalHost.value.trim(),
+      signalPort: els.signalPort.value.trim(),
+      signalPath: els.signalPath.value.trim(),
+      signalKey: els.signalKey.value.trim(),
+      forceRelay: els.forceRelay.checked
+    });
+    runDiagnostics();
+  });
+
+  els.clearAdvBtn.addEventListener('click', function () {
+    saveAdv({});
+    els.turnUrl.value = els.turnUser.value = els.turnCred.value = '';
+    els.signalHost.value = els.signalPort.value = els.signalPath.value = els.signalKey.value = '';
+    els.forceRelay.checked = false;
+    runDiagnostics();
+  });
+
+  /* ---------------- local media ---------------- */
+
+  function mediaErrorMessage(err) {
+    switch (err && err.name) {
+      case 'NotAllowedError':
+      case 'PermissionDeniedError':
+        return 'Camera/microphone permission was denied. Allow access in the browser\'s address-bar or settings, then try again.';
+      case 'NotFoundError':
+      case 'DevicesNotFoundError':
+        return 'No camera or microphone was found on this device.';
+      case 'NotReadableError':
+      case 'TrackStartError':
+        return 'Your camera or microphone is already in use by another app. Close it and try again.';
+      case 'OverconstrainedError':
+        return 'No camera/microphone matches the requested settings.';
+      default:
+        return 'Could not access camera/microphone: ' + (err && err.message ? err.message : 'unknown error.');
+    }
+  }
+
+  function getMedia() {
+    if (localStream) return Promise.resolve(localStream);
+    return navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: { echoCancellation: true, noiseSuppression: true }
+    }).then(function (stream) {
+      localStream = stream;
+      camTrack = stream.getVideoTracks()[0];
+      micTrack = stream.getAudioTracks()[0];
+      els.localVideo.srcObject = stream;
+      return stream;
+    }, function (err) {
+      throw new Error(mediaErrorMessage(err));
+    });
+  }
+
+  /* ---------------- lobby actions ---------------- */
+
+  els.createBtn.addEventListener('click', function () {
+    lobbyError('');
+    els.createBtn.disabled = true;
+    els.joinBtn.disabled = true;
+    role = 'host';
+    roomCode = randomCode();
+    bootPeer(PREFIX + roomCode);
+  });
+
+  els.joinBtn.addEventListener('click', function () {
+    var code = els.joinInput.value.trim().toUpperCase();
+    if (code.length < 4) { lobbyError('Enter a valid room code.'); return; }
+    lobbyError('');
+    els.createBtn.disabled = true;
+    els.joinBtn.disabled = true;
+    role = 'guest';
+    roomCode = code;
+    bootPeer(null);
+  });
+
+  els.joinInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') els.joinBtn.click();
+  });
+
+  function bootPeer(id) {
+    getMedia().then(function () {
+      var opts = buildPeerOpts();
+      peer = id ? new Peer(id, opts) : new Peer(opts);
+
+      var openTimer = setTimeout(function () {
+        if (peer && !peer.open) {
+          lobbyError('Could not reach the signaling server after 12 seconds. A firewall, proxy or VPN on this network may be blocking the required WebSocket connection. Try a different network, or set a self-hosted signaling server under "Advanced network settings".');
+          try { peer.destroy(); } catch (e) {}
+          peer = null;
+          els.createBtn.disabled = false;
+          els.joinBtn.disabled = false;
+        }
+      }, 12000);
+
+      peer.on('open', function () {
+        clearTimeout(openTimer);
+        showRoom();
+        if (role === 'host') {
+          setStatus('Waiting for peer…');
+          sys('Share code "' + roomCode + '" with the other person.');
+        } else {
+          setStatus('Connecting…');
+          connectToHost();
+        }
+      });
+
+      peer.on('call', handleIncomingCall);
+      peer.on('connection', handleIncomingConn);
+      peer.on('error', handlePeerError);
+      peer.on('disconnected', function () {
+        setStatus('Signaling disconnected — reconnecting…');
+        sys('Lost contact with the signaling server. Reconnecting…');
+        try { peer.reconnect(); } catch (e) {}
+      });
+    }).catch(function (err) {
+      console.error(err);
+      lobbyError(err.message);
+      els.createBtn.disabled = false;
+      els.joinBtn.disabled = false;
+      peer = null;
+    });
+  }
+
+  function showRoom() {
+    els.lobby.style.display = 'none';
+    els.room.classList.add('active');
+    els.roomCode.textContent = roomCode;
+    els.camBtn.disabled = false;
+    els.micBtn.disabled = false;
+    els.shareBtn.disabled = false;
+  }
+
+  /* ---------------- host: incoming call / data ---------------- */
+
+  function handleIncomingCall(incoming) {
+    if (call) { try { incoming.close(); } catch (e) {} return; }
+    call = incoming;
+    call.answer(localStream);
+    wireCall();
+  }
+
+  function handleIncomingConn(c) {
+    if (conn && conn.open) { try { c.close(); } catch (e) {} return; }
+    conn = c;
+    wireConn();
+  }
+
+  /* ---------------- guest: dial the host ---------------- */
+
+  function connectToHost() {
+    var targetId = PREFIX + roomCode;
+    conn = peer.connect(targetId, { reliable: true });
+    wireConn();
+    call = peer.call(targetId, localStream);
+    wireCall();
+  }
+
+  /* ---------------- call + data plumbing ---------------- */
+
+  function wireCall() {
+    remoteStream = new MediaStream();
+    els.remoteVideo.srcObject = remoteStream;
+
+    call.on('stream', function (stream) {
+      stream.getTracks().forEach(function (t) {
+        var already = remoteStream.getTracks().some(function (x) { return x.id === t.id; });
+        if (!already) remoteStream.addTrack(t);
+      });
+      els.remoteVideo.play().catch(function () {});
+      setStatus('Connected');
+      reconnectAttempts = 0;
+      els.reconnectBtn.hidden = true;
+      startStatsMonitor();
+    });
+
+    call.on('close', onPeerGone);
+    call.on('error', function (err) { console.error('Call error', err); });
+
+    if (call.peerConnection) {
+      call.peerConnection.addEventListener('iceconnectionstatechange', function () {
+        handleIceState(call.peerConnection.iceConnectionState);
+      });
+    }
+  }
+
+  function wireConn() {
+    conn.on('open', function () {
+      els.chatInput.disabled = false;
+      els.sendBtn.disabled = false;
+      sys('Chat connected.');
+      setStatus('Connected');
+    });
+
+    conn.on('data', function (data) {
+      if (data && data.type === 'chat') addMsg('them', 'Peer', String(data.text));
+    });
+
+    conn.on('close', onPeerGone);
+    conn.on('error', function (err) { console.error('Data error', err); });
+
+    if (conn.peerConnection) {
+      conn.peerConnection.addEventListener('iceconnectionstatechange', function () {
+        handleIceState(conn.peerConnection.iceConnectionState);
+      });
+    }
+  }
+
+  var suppressPeerGone = false;
+
+  function onPeerGone() {
+    if (suppressPeerGone) return;
+    if (!roomCode) return;
+    stopStatsMonitor();
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    setStatus('Peer left');
+    sys('Peer disconnected.');
+    els.chatInput.disabled = true;
+    els.sendBtn.disabled = true;
+    els.netBadge.hidden = true;
+    els.reconnectBtn.hidden = true;
+    els.remoteVideo.srcObject = null;
+    remoteStream = null;
+    call = null;
+    conn = null;
+  }
+
+  /* ---------------- ICE monitoring, live relay/direct badge, auto-reconnect ---------------- */
+
+  var reconnectAttempts = 0;
+  var reconnectTimer = null;
+  var MAX_RECONNECT = 5;
+  var statsInterval = null;
+
+  function handleIceState(state) {
+    console.log('ICE state:', state);
+    if (state === 'disconnected') {
+      setStatus('Connection unstable — recovering…');
+      sys('Network hiccup detected. Trying to recover the connection…');
+      scheduleReconnect(4000);
+    } else if (state === 'failed') {
+      setStatus('Connection failed');
+      sys('The media connection failed. This usually means a firewall or NAT is blocking the path even via TURN. Retrying…');
+      scheduleReconnect(300);
+    } else if (state === 'connected' || state === 'completed') {
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      reconnectAttempts = 0;
+      els.reconnectBtn.hidden = true;
+    }
+  }
+
+  function scheduleReconnect(delay) {
+    if (reconnectTimer) return;
+    if (reconnectAttempts >= MAX_RECONNECT) {
+      setStatus('Connection lost');
+      sys('Could not recover the connection after several attempts — this points to a persistent firewall/network problem on one side. Check your network (and the other person\'s), or try "Reconnect now".');
+      els.reconnectBtn.hidden = false;
+      return;
+    }
+    reconnectTimer = setTimeout(function () {
+      reconnectTimer = null;
+      reconnectAttempts++;
+      attemptReconnect();
+    }, delay);
+  }
+
+  function attemptReconnect() {
+    if (!roomCode || !peer || peer.destroyed) return;
+    sys('Reconnect attempt ' + reconnectAttempts + ' of ' + MAX_RECONNECT + '…');
+    stopStatsMonitor();
+    els.netBadge.hidden = true;
+    suppressPeerGone = true;
+    try { if (call) call.close(); } catch (e) {}
+    try { if (conn) conn.close(); } catch (e) {}
+    call = null; conn = null;
+    setTimeout(function () { suppressPeerGone = false; }, 250);
+
+    if (role === 'guest') {
+      setStatus('Reconnecting…');
+      connectToHost();
+    } else {
+      setStatus('Waiting for peer to reconnect…');
+      sys('Waiting for the other person\'s app to redial…');
+    }
+  }
+
+  els.reconnectBtn.addEventListener('click', function () {
+    reconnectAttempts = 0;
+    els.reconnectBtn.hidden = true;
+    attemptReconnect();
+  });
+
+  function startStatsMonitor() {
+    stopStatsMonitor();
+    statsInterval = setInterval(function () {
+      if (!call || !call.peerConnection) return;
+      call.peerConnection.getStats(null).then(function (stats) {
+        var pairId = null;
+        stats.forEach(function (r) {
+          if (r.type === 'transport' && r.selectedCandidatePairId) pairId = r.selectedCandidatePairId;
+        });
+        if (!pairId) {
+          stats.forEach(function (r) {
+            if (r.type === 'candidate-pair' && r.state === 'succeeded' && (r.nominated || pairId === null)) pairId = r.id;
+          });
+        }
+        var localType = null;
+        if (pairId) {
+          stats.forEach(function (r) {
+            if (r.id === pairId && r.type === 'candidate-pair') {
+              stats.forEach(function (r2) {
+                if (r2.id === r.localCandidateId) localType = r2.candidateType;
+              });
+            }
+          });
+        }
+        updateNetBadge(localType);
+      }).catch(function () {});
+    }, 3000);
+  }
+
+  function stopStatsMonitor() {
+    if (statsInterval) { clearInterval(statsInterval); statsInterval = null; }
+  }
+
+  function updateNetBadge(type) {
+    els.netBadge.hidden = false;
+    if (type === 'relay') {
+      els.netBadge.className = 'badge relay';
+      els.netBadge.textContent = 'Relayed (TURN)';
+    } else if (type === 'srflx' || type === 'host' || type === 'prflx') {
+      els.netBadge.className = 'badge direct';
+      els.netBadge.textContent = 'Direct';
+    } else {
+      els.netBadge.className = 'badge';
+      els.netBadge.textContent = '…';
+    }
+  }
+
+  /* ---------------- PeerJS errors ---------------- */
+
+  function handlePeerError(err) {
+    console.error('PeerJS error', err);
+    var type = err && err.type ? err.type : 'unknown';
+
+    if (type === 'unavailable-id') {
+      if (role === 'host') {
+        // Reroll the room code and try again
+        try { peer.destroy(); } catch (e) {}
+        peer = null;
+        roomCode = randomCode();
+        bootPeer(PREFIX + roomCode);
+        return;
+      }
+      lobbyError('That room code is taken. Try again.');
+    } else if (type === 'peer-unavailable') {
+      setStatus('Room not found');
+      sys('No host found for code "' + roomCode + '".');
+      lobbyError('Room not found. Check the code and try again.');
+      leaveRoom();
+    } else if (type === 'network' || type === 'server-error' || type === 'socket-error') {
+      setStatus('Network error');
+      sys('Signaling network error — this can happen when a firewall or proxy blocks WebSocket traffic. Retrying…');
+    } else if (type === 'browser-incompatible') {
+      lobbyError('Your browser does not support WebRTC.');
+    } else if (type === 'webrtc') {
+      setStatus('WebRTC error');
+      sys('A WebRTC/ICE error occurred — this often means the media path (direct or via TURN) could not be established, which usually points to a restrictive firewall on one side.');
+    } else {
+      lobbyError('Connection error: ' + type);
+    }
+  }
+
+  /* ---------------- chat ---------------- */
+
+  function sendChat() {
+    var text = els.chatInput.value.trim();
+    if (!text) return;
+    if (!conn || !conn.open) { sys('Chat not ready.'); return; }
+    conn.send({ type: 'chat', text: text });
+    addMsg('me', 'You', text);
+    els.chatInput.value = '';
+  }
+  els.sendBtn.addEventListener('click', sendChat);
+  els.chatInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') sendChat();
+  });
+
+  /* ---------------- camera / mic toggles ---------------- */
+
+  els.camBtn.addEventListener('click', function () {
+    if (!camTrack) return;
+    camOn = !camOn;
+    camTrack.enabled = camOn;
+    els.camBtn.textContent = 'Camera: ' + (camOn ? 'On' : 'Off');
+  });
+
+  els.micBtn.addEventListener('click', function () {
+    if (!micTrack) return;
+    micOn = !micOn;
+    micTrack.enabled = micOn;
+    els.micBtn.textContent = 'Mic: ' + (micOn ? 'On' : 'Off');
+  });
+
+  /* ---------------- screen sharing (+ system audio) ---------------- */
+
+  els.shareBtn.addEventListener('click', function () {
+    if (!call || !call.peerConnection || screenStream) return;
+
+    navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: { ideal: 30, max: 60 } },
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        sampleRate: 48000
+      }
+    }).then(function (stream) {
+      screenStream = stream;
+      var pc = call.peerConnection;
+
+      // 1. Swap camera → screen video (no renegotiation needed)
+      var screenVideo = stream.getVideoTracks()[0];
+      var videoSender = pc.getSenders().find(function (s) {
+        return s.track && s.track.kind === 'video';
+      });
+      if (videoSender) videoSender.replaceTrack(screenVideo);
+
+      // 2. Add system audio as an extra track so the mic keeps working.
+      //    Uses the SAME MediaStream object we passed to peer.call() so the
+      //    remote side receives it merged into one stream.
+      var screenAudio = stream.getAudioTracks()[0];
+      if (screenAudio) {
+        try {
+          screenAudioSender = pc.addTrack(screenAudio, localStream);
+          sys('Sharing screen with system audio.');
+        } catch (e) {
+          console.warn('Could not add system audio', e);
+          sys('Sharing screen (system audio could not be added).');
+        }
+      } else {
+        sys('Sharing screen (browser did not provide system audio).');
+      }
+
+      // Preview what we are sending
+      els.localVideo.srcObject = stream;
+
+      els.shareBtn.hidden = true;
+      els.shareBtn.disabled = true;
+      els.stopShareBtn.hidden = false;
+      els.camBtn.disabled = true;
+
+      // User clicked the browser's own "Stop sharing" button
+      screenVideo.addEventListener('ended', stopShare);
+    }).catch(function (err) {
+      if (err && err.name === 'NotAllowedError') sys('Screen share cancelled.');
+      else sys('Screen share failed: ' + err.message);
+    });
+  });
+
+  els.stopShareBtn.addEventListener('click', stopShare);
+
+  function stopShare() {
+    var stream = screenStream;
+    if (!stream) return;
+    screenStream = null;
+
+    stream.getTracks().forEach(function (t) { t.stop(); });
+
+    if (call && call.peerConnection) {
+      var pc = call.peerConnection;
+      var videoSender = pc.getSenders().find(function (s) {
+        return s.track && s.track.kind === 'video';
+      });
+      if (videoSender && camTrack) {
+        try { videoSender.replaceTrack(camTrack); } catch (e) {}
+      }
+      if (screenAudioSender) {
+        try { pc.removeTrack(screenAudioSender); } catch (e) {}
+        screenAudioSender = null;
+      }
+    }
+
+    if (localStream) els.localVideo.srcObject = localStream;
+
+    els.shareBtn.hidden = false;
+    els.shareBtn.disabled = false;
+    els.stopShareBtn.hidden = true;
+    els.camBtn.disabled = false;
+    sys('Stopped sharing.');
+  }
+
+  /* ---------------- copy room code ---------------- */
+
+  els.copyBtn.addEventListener('click', function () {
+    if (!roomCode) return;
+    var done = function () {
+      els.copyBtn.textContent = 'Copied!';
+      setTimeout(function () { els.copyBtn.textContent = 'Copy'; }, 1200);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(roomCode).then(done, done);
+    } else {
+      var t = document.createElement('textarea');
+      t.value = roomCode;
+      document.body.appendChild(t);
+      t.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(t);
+      done();
+    }
+  });
+
+  /* ---------------- leave / teardown ---------------- */
+
+  els.hangupBtn.addEventListener('click', leaveRoom);
+
+  function leaveRoom() {
+    suppressPeerGone = true;
+    stopStatsMonitor();
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    reconnectAttempts = 0;
+
+    try { if (call) call.close(); } catch (e) {}
+    try { if (conn) conn.close(); } catch (e) {}
+    try { if (peer) peer.destroy(); } catch (e) {}
+
+    if (screenStream) {
+      screenStream.getTracks().forEach(function (t) { t.stop(); });
+    }
+    if (localStream) {
+      localStream.getTracks().forEach(function (t) { t.stop(); });
+    }
+
+    peer = null; call = null; conn = null;
+    localStream = null; remoteStream = null; screenStream = null;
+    screenAudioSender = null; camTrack = null; micTrack = null;
+    roomCode = null; role = null;
+    camOn = true; micOn = true;
+    suppressPeerGone = false;
+
+    els.localVideo.srcObject = null;
+    els.remoteVideo.srcObject = null;
+    els.chatLog.innerHTML = '';
+    els.chatInput.value = '';
+    els.chatInput.disabled = true;
+    els.sendBtn.disabled = true;
+    els.camBtn.disabled = true;
+    els.micBtn.disabled = true;
+    els.camBtn.textContent = 'Camera: On';
+    els.micBtn.textContent = 'Mic: On';
+    els.shareBtn.disabled = true;
+    els.shareBtn.hidden = false;
+    els.stopShareBtn.hidden = true;
+    els.reconnectBtn.hidden = true;
+    els.netBadge.hidden = true;
+    els.createBtn.disabled = false;
+    els.joinBtn.disabled = false;
+    els.joinInput.value = '';
+    els.lobbyStatus.textContent = '';
+    els.status.textContent = 'Idle';
+
+    els.room.classList.remove('active');
+    els.lobby.style.display = 'flex';
+
+    runDiagnostics();
+  }
+
+  window.addEventListener('beforeunload', function () {
+    try { if (peer) peer.destroy(); } catch (e) {}
+  });
+
+  /* ---------------- startup ---------------- */
+
+  if (checkCapabilities()) runDiagnostics();
+
+})();
+</script>
+</body>
+</html>
