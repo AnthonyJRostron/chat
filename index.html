@@ -141,6 +141,20 @@
   .checkbox-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8b949e; margin-top: 10px; }
   .checkbox-row input { margin: 0; }
   .advBtnRow { display: flex; gap: 8px; margin-top: 14px; }
+
+  /* ---------- Lobby media pre-flight ---------- */
+  .mediaPreviewWrap {
+    display: flex; gap: 12px; align-items: center;
+    margin-bottom: 18px; padding: 10px; background: #0d1117;
+    border: 1px solid #30363d; border-radius: 10px;
+  }
+  .mediaPreviewWrap video {
+    width: 84px; height: 84px; border-radius: 8px; background: #000;
+    object-fit: cover; flex: none;
+  }
+  .mediaCol { flex: 1; min-width: 0; }
+  .mediaCol button { width: 100%; margin-bottom: 6px; }
+  .mediaCol .hint { margin: 0; }
 </style>
 </head>
 <body>
@@ -150,6 +164,15 @@
   <div class="card">
     <h1>WebRTC Conference</h1>
     <p>Two-person video call with chat and screen sharing. Create a room, then share the code with the other person.</p>
+
+    <div class="mediaPreviewWrap">
+      <video id="lobbyPreview" autoplay muted playsinline></video>
+      <div class="mediaCol">
+        <button id="enableMediaBtn" type="button" hidden>Enable camera &amp; microphone</button>
+        <p id="mediaStatus" class="hint">Requesting camera &amp; microphone access…</p>
+      </div>
+    </div>
+
     <button id="createBtn" class="primary" style="width:100%">Create a room</button>
     <div class="or">or join an existing room</div>
     <div class="row">
@@ -253,7 +276,8 @@
     signalHost: $('signalHost'), signalPort: $('signalPort'),
     signalPath: $('signalPath'), signalKey: $('signalKey'),
     forceRelay: $('forceRelay'),
-    saveAdvBtn: $('saveAdvBtn'), clearAdvBtn: $('clearAdvBtn')
+    saveAdvBtn: $('saveAdvBtn'), clearAdvBtn: $('clearAdvBtn'),
+    lobbyPreview: $('lobbyPreview'), enableMediaBtn: $('enableMediaBtn'), mediaStatus: $('mediaStatus')
   };
 
   var PREFIX = 'wrtc2-';   // namespaces our room IDs on the public PeerJS cloud
@@ -378,6 +402,8 @@
       els.joinBtn.disabled = true;
       els.netDiag.className = 'diag show bad';
       els.netDiag.textContent = 'This browser/page cannot run video calls at all — see the message above.';
+      els.mediaStatus.textContent = 'Camera/microphone access is unavailable in this browser.';
+      els.enableMediaBtn.hidden = true;
       return false;
     }
     return true;
@@ -519,21 +545,61 @@
     }
   }
 
+  var mediaPromise = null;
+
   function getMedia() {
     if (localStream) return Promise.resolve(localStream);
-    return navigator.mediaDevices.getUserMedia({
+    if (mediaPromise) return mediaPromise;
+    mediaPromise = navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 1280 }, height: { ideal: 720 } },
       audio: { echoCancellation: true, noiseSuppression: true }
     }).then(function (stream) {
+      mediaPromise = null;
       localStream = stream;
       camTrack = stream.getVideoTracks()[0];
       micTrack = stream.getAudioTracks()[0];
       els.localVideo.srcObject = stream;
+      if (els.lobbyPreview) els.lobbyPreview.srcObject = stream;
       return stream;
     }, function (err) {
+      mediaPromise = null;
       throw new Error(mediaErrorMessage(err));
     });
+    return mediaPromise;
   }
+
+  /* ---------------- request camera/mic up front (lobby pre-flight) ---------------- */
+  // iOS, Android and desktop browsers all handle getUserMedia slightly
+  // differently (some allow a request with no prior click, some effectively
+  // require one). We try automatically first so most users get the native
+  // permission prompt the instant the page loads; if that's blocked or
+  // denied, we fall back to an explicit button tap, which is a genuine user
+  // gesture and works everywhere, including iOS Safari and in-app browsers.
+
+  function attemptAutoMedia() {
+    els.mediaStatus.textContent = 'Requesting camera & microphone access…';
+    els.enableMediaBtn.hidden = true;
+    getMedia().then(function () {
+      els.mediaStatus.textContent = '✓ Camera & microphone ready.';
+      els.enableMediaBtn.hidden = true;
+    }).catch(function (err) {
+      els.mediaStatus.textContent = err.message;
+      els.enableMediaBtn.hidden = false;
+      els.enableMediaBtn.disabled = false;
+    });
+  }
+
+  els.enableMediaBtn.addEventListener('click', function () {
+    els.enableMediaBtn.disabled = true;
+    els.mediaStatus.textContent = 'Requesting camera & microphone access…';
+    getMedia().then(function () {
+      els.mediaStatus.textContent = '✓ Camera & microphone ready.';
+      els.enableMediaBtn.hidden = true;
+    }).catch(function (err) {
+      els.enableMediaBtn.disabled = false;
+      els.mediaStatus.textContent = err.message;
+    });
+  });
 
   /* ---------------- lobby actions ---------------- */
 
@@ -1024,6 +1090,7 @@
 
     els.localVideo.srcObject = null;
     els.remoteVideo.srcObject = null;
+    if (els.lobbyPreview) els.lobbyPreview.srcObject = null;
     els.chatLog.innerHTML = '';
     els.chatInput.value = '';
     els.chatInput.disabled = true;
@@ -1047,6 +1114,7 @@
     els.lobby.style.display = 'flex';
 
     runDiagnostics();
+    attemptAutoMedia();
   }
 
   window.addEventListener('beforeunload', function () {
@@ -1055,7 +1123,10 @@
 
   /* ---------------- startup ---------------- */
 
-  if (checkCapabilities()) runDiagnostics();
+  if (checkCapabilities()) {
+    runDiagnostics();
+    attemptAutoMedia();
+  }
 
 })();
 </script>
