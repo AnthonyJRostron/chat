@@ -701,15 +701,23 @@
   // real tap on this button — guaranteed to work the same way on iOS,
   // Android and desktop.
 
-  function requestMedia() {
-    els.enableMediaBtn.disabled = true;
-    els.mediaStatus.textContent = 'Requesting camera & microphone access…';
-    return getMedia().then(function () {
-      els.mediaStatus.textContent = micTrack
-        ? '✓ Camera & microphone ready.'
-        : '✓ Camera ready, but the microphone is unavailable (blocked or not found) — others won\'t hear you.';
+  function showMicState() {
+    if (micTrack) {
+      els.mediaStatus.textContent = '\u2713 Camera & microphone ready.';
       els.enableMediaBtn.hidden = true;
-    }, function (err) {
+    } else {
+      els.mediaStatus.textContent = 'Camera ready, but the microphone is blocked or unavailable \u2014 others won\'t hear you. On iPhone: tap the aA icon in Safari \u25B8 Website Settings \u25B8 Microphone \u25B8 Allow, then tap Retry microphone.';
+      els.enableMediaBtn.textContent = 'Retry microphone';
+      els.enableMediaBtn.disabled = false;
+      els.enableMediaBtn.hidden = false;
+    }
+  }
+
+  function requestMedia() {
+    els.enableMediaBtn.textContent = 'Enable camera & microphone';
+    els.enableMediaBtn.disabled = true;
+    els.mediaStatus.textContent = 'Requesting camera & microphone access\u2026';
+    return getMedia().then(showMicState, function (err) {
       els.enableMediaBtn.disabled = false;
       els.enableMediaBtn.hidden = false;
       els.mediaStatus.textContent = err.message;
@@ -717,8 +725,36 @@
     });
   }
 
+  // Ask for the microphone alone (must run inside a tap) and attach it to
+  // the camera stream we already have.
+  function retryMic() {
+    els.enableMediaBtn.disabled = true;
+    els.mediaStatus.textContent = 'Requesting microphone\u2026';
+    var tries = [{ echoCancellation: true, noiseSuppression: true }, true];
+    var i = 0;
+    function next() {
+      var a = tries[i++];
+      return navigator.mediaDevices.getUserMedia({ audio: a, video: false }).then(function (s) {
+        var t = s.getAudioTracks()[0];
+        camLog('OK microphone retry');
+        localStream.addTrack(t);
+        micTrack = t;
+        micTrack.enabled = micOn;
+        showMicState();
+      }, function (err) {
+        camLog('FAIL microphone retry -> ' + errText(err));
+        if (i < tries.length) return next();
+        showMicState();
+        els.mediaStatus.textContent = mediaErrorMessage(err).replace('camera/microphone', 'microphone') +
+          ' (' + (err && err.name ? err.name : 'error') + ')';
+      });
+    }
+    return next();
+  }
+
   els.enableMediaBtn.addEventListener('click', function () {
-    requestMedia().catch(function () {});
+    if (localStream && !micTrack) retryMic();
+    else requestMedia().catch(function () {});
   });
 
   /* ---------------- switch camera (front/back or multiple webcams) ---------------- */
