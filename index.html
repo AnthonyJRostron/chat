@@ -155,6 +155,13 @@
   .mediaCol { flex: 1; min-width: 0; }
   .mediaCol button { width: 100%; margin-bottom: 6px; }
   .mediaCol .hint { margin: 0; }
+  .camLog {
+    display: none; margin: 10px 0 0; padding: 8px 10px; border-radius: 8px;
+    background: #0d1117; border: 1px solid #30363d; color: #8b949e;
+    font-family: ui-monospace, monospace; font-size: 10.5px; line-height: 1.5;
+    white-space: pre-wrap; word-break: break-word; max-height: 140px; overflow-y: auto;
+  }
+  .camLog.show { display: block; }
 </style>
 </head>
 <body>
@@ -168,10 +175,11 @@
     <div class="mediaPreviewWrap">
       <video id="lobbyPreview" autoplay muted playsinline></video>
       <div class="mediaCol">
-        <button id="enableMediaBtn" type="button" hidden>Enable camera &amp; microphone</button>
-        <p id="mediaStatus" class="hint">Requesting camera &amp; microphone access…</p>
+        <button id="enableMediaBtn" type="button">Enable camera &amp; microphone</button>
+        <p id="mediaStatus" class="hint">Tap to allow camera &amp; microphone access.</p>
       </div>
     </div>
+    <pre id="camLog" class="camLog"></pre>
 
     <button id="createBtn" class="primary" style="width:100%">Create a room</button>
     <div class="or">or join an existing room</div>
@@ -246,6 +254,7 @@
   <footer>
     <button id="camBtn" disabled>Camera: On</button>
     <button id="micBtn" disabled>Mic: On</button>
+    <button id="flipBtn" disabled hidden>Switch camera</button>
     <button id="shareBtn" disabled>Share screen + audio</button>
     <button id="stopShareBtn" class="danger" hidden>Stop sharing</button>
     <button id="reconnectBtn" hidden>Reconnect now</button>
@@ -267,7 +276,7 @@
     roomCode: $('roomCode'), copyBtn: $('copyBtn'), status: $('status'),
     localVideo: $('localVideo'), remoteVideo: $('remoteVideo'),
     chatLog: $('chatLog'), chatInput: $('chatInput'), sendBtn: $('sendBtn'),
-    camBtn: $('camBtn'), micBtn: $('micBtn'),
+    camBtn: $('camBtn'), micBtn: $('micBtn'), flipBtn: $('flipBtn'),
     shareBtn: $('shareBtn'), stopShareBtn: $('stopShareBtn'),
     hangupBtn: $('hangupBtn'), reconnectBtn: $('reconnectBtn'),
     netBadge: $('netBadge'), netDiag: $('netDiag'),
@@ -277,7 +286,8 @@
     signalPath: $('signalPath'), signalKey: $('signalKey'),
     forceRelay: $('forceRelay'),
     saveAdvBtn: $('saveAdvBtn'), clearAdvBtn: $('clearAdvBtn'),
-    lobbyPreview: $('lobbyPreview'), enableMediaBtn: $('enableMediaBtn'), mediaStatus: $('mediaStatus')
+    lobbyPreview: $('lobbyPreview'), enableMediaBtn: $('enableMediaBtn'), mediaStatus: $('mediaStatus'),
+    camLog: $('camLog')
   };
 
   var PREFIX = 'wrtc2-';   // namespaces our room IDs on the public PeerJS cloud
@@ -545,40 +555,117 @@
     }
   }
 
+  function camLog(msg) {
+    console.log(msg);
+    if (!els.camLog) return;
+    var d = new Date();
+    var t = ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
+    els.camLog.textContent += t + ' ' + msg + '\n';
+    els.camLog.classList.add('show');
+    els.camLog.scrollTop = els.camLog.scrollHeight;
+  }
+
+  function errText(err) {
+    return (err && err.name ? err.name : 'Error') + (err && err.message ? ': ' + err.message : '');
+  }
+
   // Progressively less demanding constraint sets, tried in order until one
-  // succeeds. Ported from the barcode-scanner app's acquireCamera(): some
-  // devices/webcams reject a specific resolution or frame rate outright
-  // (OverconstrainedError) even though the camera itself is fine, so a
-  // single fixed getUserMedia() call can fail where a fallback chain
-  // wouldn't. Audio constraints stay constant; only video is relaxed.
+  // succeeds. Ported from the barcode-scanner app's acquireCamera().
+  // The barcode scanner asks for video ONLY and works; asking for audio +
+  // video together fails entirely if the microphone is blocked/unavailable
+  // even though the camera is fine. So after the audio+video attempts we
+  // fall back to video-only, and the call continues without a mic.
   function acquireCamera() {
     var AUDIO = { echoCancellation: true, noiseSuppression: true };
     var attempts = [
-      { name: '1280x720 front', v: { facingMode: { ideal: 'user' },
-          width: { ideal: 1280 }, height: { ideal: 720 },
-          frameRate: { ideal: 30, max: 30 } } },
-      { name: '1280x720 any', v: { width: { ideal: 1280 }, height: { ideal: 720 } } },
-      { name: '640x480 any', v: { width: { ideal: 640 }, height: { ideal: 480 } } },
-      { name: 'default video', v: true }
+      { name: 'A+V 1280x720 front', a: AUDIO, v: { facingMode: { ideal: 'user' },
+          width: { ideal: 1280 }, height: { ideal: 720 } } },
+      { name: 'A+V 1280x720 back', a: AUDIO, v: { facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 }, height: { ideal: 720 } } },
+      { name: 'A+V 640x480 any', a: AUDIO, v: { width: { ideal: 640 }, height: { ideal: 480 } } },
+      { name: 'A+V default', a: true, v: true },
+      { name: 'video-only back', a: false, v: { facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 }, height: { ideal: 720 } } },
+      { name: 'video-only front', a: false, v: { facingMode: { ideal: 'user' } } },
+      { name: 'video-only default', a: false, v: true }
     ];
+
+    function logEnv() {
+      var inFrame = false;
+      try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
+      camLog('Env: ' + location.protocol + '//' + (location.host || '(none)') +
+        ' | secure=' + window.isSecureContext + ' | iframe=' + inFrame);
+      camLog('UA: ' + navigator.userAgent.slice(0, 110));
+      if (navigator.permissions && navigator.permissions.query) {
+        ['camera', 'microphone'].forEach(function (n) {
+          navigator.permissions.query({ name: n }).then(function (p) {
+            camLog('Permission ' + n + ': ' + p.state);
+          }).catch(function () { camLog('Permission ' + n + ': not queryable'); });
+        });
+      }
+    }
+    logEnv();
+
+    function logDevices(when) {
+      if (!navigator.mediaDevices.enumerateDevices) return;
+      navigator.mediaDevices.enumerateDevices().then(function (ds) {
+        var cams = ds.filter(function (d) { return d.kind === 'videoinput'; }).length;
+        var mics = ds.filter(function (d) { return d.kind === 'audioinput'; }).length;
+        camLog('Devices ' + when + ': ' + cams + ' camera(s), ' + mics + ' mic(s)');
+      }).catch(function () {});
+    }
+    logDevices('before');
 
     var i = 0, lastErr = null;
     function tryNext() {
-      if (i >= attempts.length) return Promise.reject(lastErr || new Error('No camera available'));
+      if (i >= attempts.length) {
+        logDevices('after (all failed)');
+        return Promise.reject(lastErr || new Error('No camera available'));
+      }
       var a = attempts[i++];
-      return navigator.mediaDevices.getUserMedia({ audio: AUDIO, video: a.v }).then(function (s) {
+      return navigator.mediaDevices.getUserMedia({ audio: a.a, video: a.v }).then(function (s) {
         var track = s.getVideoTracks()[0];
         var st = (track && track.getSettings) ? track.getSettings() : {};
-        console.log('Camera ' + a.name + ' -> ' + (st.width || '?') + 'x' + (st.height || '?') +
-          (st.frameRate ? ' @' + Math.round(st.frameRate) : ''));
+        camLog('OK ' + a.name + ' -> ' + (st.width || '?') + 'x' + (st.height || '?') +
+          (s.getAudioTracks().length ? ' +mic' : ' (no mic)'));
+        logDevices('after');
         return s;
       }, function (err) {
         lastErr = err;
-        console.warn('Camera ' + a.name + ' failed: ' + (err.name || err.message || 'error'));
+        camLog('FAIL ' + a.name + ' -> ' + errText(err));
         return tryNext();
       });
     }
     return tryNext();
+  }
+
+  // On iOS Safari in particular, a getUserMedia() call made without a real
+  // user tap can occasionally just hang forever — no prompt, no resolve, no
+  // reject — rather than being cleanly rejected. If we let that happen we'd
+  // not only miss the prompt, we'd also wedge every future attempt (since
+  // getMedia() below reuses any in-flight call). This wraps the request in
+  // a hard timeout so a stuck call always eventually frees things up again
+  // for a retry, instead of getting stuck silently forever.
+  function withTimeout(promise, ms) {
+    return new Promise(function (resolve, reject) {
+      var settled = false;
+      var timer = setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        reject(new Error('TIMEOUT'));
+      }, ms);
+      promise.then(function (v) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(v);
+      }, function (e) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(e);
+      });
+    });
   }
 
   var mediaPromise = null;
@@ -586,53 +673,110 @@
   function getMedia() {
     if (localStream) return Promise.resolve(localStream);
     if (mediaPromise) return mediaPromise;
-    mediaPromise = acquireCamera().then(function (stream) {
+    mediaPromise = withTimeout(acquireCamera(), 20000).then(function (stream) {
       mediaPromise = null;
       localStream = stream;
       camTrack = stream.getVideoTracks()[0];
       micTrack = stream.getAudioTracks()[0];
       els.localVideo.srcObject = stream;
       if (els.lobbyPreview) els.lobbyPreview.srcObject = stream;
+      refreshVideoDeviceList();
       return stream;
     }, function (err) {
       mediaPromise = null;
+      if (err && err.message === 'TIMEOUT') {
+        throw new Error('The camera/microphone request timed out without showing a prompt. Make sure this page is open directly in Safari/Chrome (not inside another app\'s built-in browser), then tap the button below to try again.');
+      }
       throw new Error(mediaErrorMessage(err));
     });
     return mediaPromise;
   }
 
-  /* ---------------- request camera/mic up front (lobby pre-flight) ---------------- */
-  // iOS, Android and desktop browsers all handle getUserMedia slightly
-  // differently (some allow a request with no prior click, some effectively
-  // require one). We try automatically first so most users get the native
-  // permission prompt the instant the page loads; if that's blocked or
-  // denied, we fall back to an explicit button tap, which is a genuine user
-  // gesture and works everywhere, including iOS Safari and in-app browsers.
+  /* ---------------- request camera/mic (lobby pre-flight) ---------------- */
+  // Deliberately NOT requested automatically on page load: on iOS Safari,
+  // a getUserMedia() call with no real user gesture behind it can fail to
+  // show the permission prompt at all (this is what the barcode-scanner
+  // app avoids by only ever asking inside its "Start" button's click
+  // handler). So here too, the very first request always happens inside a
+  // real tap on this button — guaranteed to work the same way on iOS,
+  // Android and desktop.
 
-  function attemptAutoMedia() {
+  function requestMedia() {
+    els.enableMediaBtn.disabled = true;
     els.mediaStatus.textContent = 'Requesting camera & microphone access…';
-    els.enableMediaBtn.hidden = true;
-    getMedia().then(function () {
-      els.mediaStatus.textContent = '✓ Camera & microphone ready.';
+    return getMedia().then(function () {
+      els.mediaStatus.textContent = micTrack
+        ? '✓ Camera & microphone ready.'
+        : '✓ Camera ready, but the microphone is unavailable (blocked or not found) — others won\'t hear you.';
       els.enableMediaBtn.hidden = true;
-    }).catch(function (err) {
-      els.mediaStatus.textContent = err.message;
-      els.enableMediaBtn.hidden = false;
+    }, function (err) {
       els.enableMediaBtn.disabled = false;
+      els.enableMediaBtn.hidden = false;
+      els.mediaStatus.textContent = err.message;
+      throw err;
     });
   }
 
   els.enableMediaBtn.addEventListener('click', function () {
-    els.enableMediaBtn.disabled = true;
-    els.mediaStatus.textContent = 'Requesting camera & microphone access…';
-    getMedia().then(function () {
-      els.mediaStatus.textContent = '✓ Camera & microphone ready.';
-      els.enableMediaBtn.hidden = true;
-    }).catch(function (err) {
-      els.enableMediaBtn.disabled = false;
-      els.mediaStatus.textContent = err.message;
-    });
+    requestMedia().catch(function () {});
   });
+
+  /* ---------------- switch camera (front/back or multiple webcams) ---------------- */
+  // Device labels/enumeration are only populated once permission has been
+  // granted, so this is called after getMedia() succeeds. Cycling by
+  // deviceId (rather than facingMode) works on desktops with several
+  // webcams too, not just phones with a front/back pair — and it's also
+  // the natural way to route around a camera that's blocked by policy
+  // (see acquireCamera() above) while another one on the same device works.
+
+  var videoDevices = [];
+
+  function refreshVideoDeviceList() {
+    if (!navigator.mediaDevices.enumerateDevices) return;
+    navigator.mediaDevices.enumerateDevices().then(function (devices) {
+      videoDevices = devices.filter(function (d) { return d.kind === 'videoinput'; });
+      els.flipBtn.hidden = videoDevices.length < 2;
+    }).catch(function () {});
+  }
+
+  function replaceVideoTrack(newTrack) {
+    if (camTrack) {
+      try { localStream.removeTrack(camTrack); } catch (e) {}
+      try { camTrack.stop(); } catch (e) {}
+    }
+    localStream.addTrack(newTrack);
+    newTrack.enabled = camOn;
+    camTrack = newTrack;
+    els.localVideo.srcObject = localStream;
+    if (els.lobbyPreview) els.lobbyPreview.srcObject = localStream;
+    if (call && call.peerConnection) {
+      var sender = call.peerConnection.getSenders().filter(function (s) {
+        return s.track && s.track.kind === 'video';
+      })[0];
+      if (sender) { try { sender.replaceTrack(camTrack); } catch (e) {} }
+    }
+  }
+
+  function flipCamera() {
+    if (videoDevices.length < 2 || !camTrack) return;
+    els.flipBtn.disabled = true;
+    var settings = camTrack.getSettings ? camTrack.getSettings() : {};
+    var idx = videoDevices.findIndex(function (d) { return d.deviceId === settings.deviceId; });
+    var next = videoDevices[(idx + 1) % videoDevices.length];
+    navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { deviceId: { exact: next.deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    }).then(function (s) {
+      replaceVideoTrack(s.getVideoTracks()[0]);
+      refreshVideoDeviceList();
+      els.flipBtn.disabled = false;
+    }).catch(function (err) {
+      sys('Could not switch camera: ' + mediaErrorMessage(err));
+      els.flipBtn.disabled = false;
+    });
+  }
+
+  els.flipBtn.addEventListener('click', flipCamera);
 
   /* ---------------- lobby actions ---------------- */
 
@@ -710,6 +854,7 @@
     els.roomCode.textContent = roomCode;
     els.camBtn.disabled = false;
     els.micBtn.disabled = false;
+    els.flipBtn.disabled = videoDevices.length < 2;
     els.shareBtn.disabled = false;
   }
 
@@ -1031,6 +1176,7 @@
       els.shareBtn.disabled = true;
       els.stopShareBtn.hidden = false;
       els.camBtn.disabled = true;
+      els.flipBtn.disabled = true;
 
       // User clicked the browser's own "Stop sharing" button
       screenVideo.addEventListener('ended', stopShare);
@@ -1069,6 +1215,7 @@
     els.shareBtn.disabled = false;
     els.stopShareBtn.hidden = true;
     els.camBtn.disabled = false;
+    els.flipBtn.disabled = videoDevices.length < 2;
     sys('Stopped sharing.');
   }
 
@@ -1130,6 +1277,7 @@
     els.sendBtn.disabled = true;
     els.camBtn.disabled = true;
     els.micBtn.disabled = true;
+    els.flipBtn.disabled = true;
     els.camBtn.textContent = 'Camera: On';
     els.micBtn.textContent = 'Mic: On';
     els.shareBtn.disabled = true;
@@ -1147,7 +1295,7 @@
     els.lobby.style.display = 'flex';
 
     runDiagnostics();
-    attemptAutoMedia();
+    requestMedia().catch(function () {});
   }
 
   window.addEventListener('beforeunload', function () {
@@ -1158,7 +1306,6 @@
 
   if (checkCapabilities()) {
     runDiagnostics();
-    attemptAutoMedia();
   }
 
 })();
