@@ -1161,9 +1161,26 @@
     waitForHostTimer = setTimeout(function () {
       waitForHostTimer = null;
       if (!waitingForHost) return;
-      if (!peer || peer.destroyed) return;
-      connectToHost();
+      retryHostConnect();
     }, delay);
+  }
+  // Rebuild the guest Peer if it was destroyed by a previous peer-unavailable,
+  // otherwise just dial again. This is what keeps the waiting-room loop alive.
+  function retryHostConnect() {
+    if (!waitingForHost || role !== 'guest') return;
+    if (peer && !peer.destroyed && !peer.disconnected) {
+      try {
+        connectToHost();
+        return;
+      } catch (e) {
+        console.warn('[retry] connectToHost threw, rebuilding peer', e);
+      }
+    }
+    console.log('[retry] rebuilding guest peer (destroyed=' +
+      (peer && peer.destroyed) + ', disconnected=' +
+      (peer && peer.disconnected) + ')');
+    destroyPeer();
+    createPeer(null);
   }
   els.cancelWaitBtn.addEventListener('click', function () {
     exitWaitingRoom();
@@ -1918,44 +1935,67 @@
     els.createBtn.textContent = 'Create a room';
   }
 
+  /* ---------------- peer lifecycle ---------------- */
+  // Create the Peer instance and wire all its event handlers.
+  // Split out from bootPeer so the guest retry loop can rebuild it.
+  function createPeer(id) {
+    var opts = buildPeerOpts();
+    peer = id ? new Peer(id, opts) : new Peer(opts);
+
+    peerOpenTimer = setTimeout(function () {
+      peerOpenTimer = null;
+      if (peer && !peer.open && !peer.destroyed) {
+        lobbyError('Could not reach the signaling server after 12 seconds. A firewall, proxy or VPN on this network may be blocking the required WebSocket connection. Try a different network, or set a self-hosted signaling server under "Advanced network settings".');
+        try { peer.destroy(); } catch (e) {}
+        peer = null;
+        resetCreateUI();
+        // Keep the guest waiting-room retry loop alive even if signaling never opens.
+        if (waitingForHost) scheduleHostRetry(3000);
+      }
+    }, 12000);
+
+    peer.on('open', function () {
+      if (peerOpenTimer) { clearTimeout(peerOpenTimer); peerOpenTimer = null; }
+      showRoom();
+      if (role === 'host') {
+        setStatus('Waiting for peer…');
+        sys('Share code "' + roomCode + '" with the other person.');
+        sys('You can already share your screen and queue messages and files \u2014 they will be delivered as soon as the peer joins.');
+        rememberHostRoom(roomCode);
+      } else {
+        setStatus('Connecting…');
+        connectToHost();
+      }
+    });
+
+    peer.on('call', handleIncomingCall);
+    peer.on('connection', handleIncomingConn);
+    peer.on('error', handlePeerError);
+    peer.on('disconnected', function () {
+      if (!peer || peer.destroyed) return;
+      setStatus('Signaling disconnected — reconnecting…');
+      sys('Lost contact with the signaling server. Reconnecting…');
+      try { peer.reconnect(); } catch (e) {}
+    });
+  }
+
+  // Tear down the Peer and its call/conn. Suppresses the "peer gone" UI
+  // so the guest waiting-room retry can rebuild silently.
+  function destroyPeer() {
+    suppressPeerGone = true;
+    if (peerOpenTimer) { clearTimeout(peerOpenTimer); peerOpenTimer = null; }
+    if (call) { try { call.close(); } catch (e) {} }
+    if (conn) { try { conn.close(); } catch (e) {} }
+    if (peer) { try { peer.destroy(); } catch (e) {} }
+    peer = null;
+    call = null;
+    conn = null;
+    setTimeout(function () { suppressPeerGone = false; }, 250);
+  }
+
   function bootPeer(id) {
     getMedia().then(function () {
-      var opts = buildPeerOpts();
-      peer = id ? new Peer(id, opts) : new Peer(opts);
-
-      peerOpenTimer = setTimeout(function () {
-        peerOpenTimer = null;
-        if (peer && !peer.open && !peer.destroyed) {
-          lobbyError('Could not reach the signaling server after 12 seconds. A firewall, proxy or VPN on this network may be blocking the required WebSocket connection. Try a different network, or set a self-hosted signaling server under "Advanced network settings".');
-          try { peer.destroy(); } catch (e) {}
-          peer = null;
-          resetCreateUI();
-        }
-      }, 12000);
-
-      peer.on('open', function () {
-        if (peerOpenTimer) { clearTimeout(peerOpenTimer); peerOpenTimer = null; }
-        showRoom();
-        if (role === 'host') {
-          setStatus('Waiting for peer…');
-          sys('Share code "' + roomCode + '" with the other person.');
-          sys('You can already share your screen and queue messages and files \u2014 they will be delivered as soon as the peer joins.');
-          rememberHostRoom(roomCode);
-        } else {
-          setStatus('Connecting…');
-          connectToHost();
-        }
-      });
-
-      peer.on('call', handleIncomingCall);
-      peer.on('connection', handleIncomingConn);
-      peer.on('error', handlePeerError);
-      peer.on('disconnected', function () {
-        if (!peer || peer.destroyed) return;
-        setStatus('Signaling disconnected — reconnecting…');
-        sys('Lost contact with the signaling server. Reconnecting…');
-        try { peer.reconnect(); } catch (e) {}
-      });
+      createPeer(id);
     }).catch(function (err) {
       console.error(err);
       lobbyError(err.message);
@@ -2048,8 +2088,15 @@
   function connectToHost() {
     if (!peer || peer.destroyed) return;
     var targetId = PREFIX + roomCode;
+
+    // Detach before closing so the stale 'close' events from the old
+    // call/conn can't wipe out the fresh ones we're about to create.
+    suppressPeerGone = true;
     try { if (call) call.close(); } catch (e) {}
     try { if (conn) conn.close(); } catch (e) {}
+    call = null; conn = null;
+    setTimeout(function () { suppressPeerGone = false; }, 250);
+
     conn = peer.connect(targetId, { reliable: true });
     wireConn();
     call = peer.call(targetId, localStream);
