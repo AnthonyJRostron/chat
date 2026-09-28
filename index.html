@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>WebRTC Conference</title>
+<title>English Class Chat by Anthony Rostron</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -55,6 +55,7 @@
     padding: 10px 16px; background: #161b22;
     border-bottom: 1px solid #30363d; flex-wrap: wrap;
   }
+  header .brand { font-weight: 700; color: #58a6ff; margin-right: 8px; }
   header .code {
     background: #0d1117; border: 1px solid #30363d;
     padding: 5px 12px; border-radius: 6px;
@@ -78,6 +79,15 @@
     background: rgba(0,0,0,.6); padding: 3px 10px;
     border-radius: 999px; font-size: 11px;
   }
+  .tile .maxBtn {
+    position: absolute; top: 8px; right: 8px; padding: 2px 8px; font-size: 14px;
+    background: rgba(0,0,0,.6); border: 1px solid #30363d; color: #e6edf3; cursor: pointer;
+  }
+  #videos.maximized { grid-template-columns: 1fr; }
+  #thumbSlot { display: flex; }
+  #thumbSlot .tile { width: 128px; height: 72px; cursor: pointer; border-radius: 8px; }
+  #thumbSlot .tile .maxBtn { display: none; }
+  #thumbSlot .tile .label { font-size: 9px; padding: 1px 6px; left: 4px; bottom: 4px; }
   #sidebar {
     width: 320px; display: flex; flex-direction: column;
     border-left: 1px solid #30363d; min-height: 0;
@@ -91,7 +101,10 @@
   .msg.them { background: #21262d; border: 1px solid #30363d; align-self: flex-start; }
   .msg.sys { background: transparent; color: #8b949e; font-style: italic; align-self: center; font-size: 11px; }
   #chatBar { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #30363d; }
-  #chatBar input { flex: 1; min-width: 0; }
+  #chatBar input[type=text] { flex: 1; min-width: 0; }
+  .msg a { color: #58a6ff; }
+  .msg img.thumb { display: block; max-width: 100%; max-height: 160px; margin-top: 6px; border-radius: 6px; }
+  .msg progress { display: block; width: 100%; margin-top: 4px; }
   footer {
     display: flex; gap: 8px; flex-wrap: wrap;
     padding: 10px 16px; background: #161b22;
@@ -169,7 +182,8 @@
 <!-- ============ LOBBY ============ -->
 <div id="lobby">
   <div class="card">
-    <h1>WebRTC Conference</h1>
+    <h1>English Class Chat</h1>
+    <p style="margin-top:-6px;color:#58a6ff">by Anthony Rostron</p>
     <p>Two-person video call with chat and screen sharing. Create a room, then share the code with the other person.</p>
 
     <div class="mediaPreviewWrap">
@@ -226,26 +240,33 @@
 <!-- ============ ROOM ============ -->
 <div id="room">
   <header>
+    <span class="brand">English Class Chat by Anthony Rostron</span>
     <span>Room</span>
     <span class="code" id="roomCode">------</span>
     <button id="copyBtn" title="Copy room code">Copy</button>
     <span class="badge" id="netBadge" hidden>–</span>
+    <button id="layoutBtn" hidden>Split view</button>
+    <div id="thumbSlot"></div>
     <span class="status" id="status">Idle</span>
   </header>
   <main>
     <div id="videos">
-      <div class="tile">
+      <div class="tile" id="tileLocal">
         <video id="localVideo" autoplay muted playsinline></video>
         <span class="label">You</span>
+        <button class="maxBtn" data-tile="local" title="Maximize your view">&#x26F6;</button>
       </div>
-      <div class="tile">
+      <div class="tile" id="tileRemote">
         <video id="remoteVideo" autoplay playsinline></video>
-        <span class="label">Peer</span>
+        <span class="label" id="peerLabel">Peer</span>
+        <button class="maxBtn" data-tile="remote" title="Maximize peer's view">&#x26F6;</button>
       </div>
     </div>
     <aside id="sidebar">
       <div id="chatLog"></div>
       <div id="chatBar">
+        <button id="attachBtn" title="Attach file" disabled>&#128206;</button>
+        <input id="fileInput" type="file" multiple hidden />
         <input id="chatInput" type="text" placeholder="Message…" disabled />
         <button id="sendBtn" disabled>Send</button>
       </div>
@@ -255,6 +276,8 @@
     <button id="camBtn" disabled>Camera: On</button>
     <button id="micBtn" disabled>Mic: On</button>
     <button id="flipBtn" disabled hidden>Switch camera</button>
+    <button id="muteGuestBtn" hidden disabled>Mute peer</button>
+    <button id="qualityBtn" disabled title="Reduce video quality to save bandwidth">Quality: Auto</button>
     <button id="shareBtn" disabled>Share screen + audio</button>
     <button id="stopShareBtn" class="danger" hidden>Stop sharing</button>
     <button id="reconnectBtn" hidden>Reconnect now</button>
@@ -287,7 +310,9 @@
     forceRelay: $('forceRelay'),
     saveAdvBtn: $('saveAdvBtn'), clearAdvBtn: $('clearAdvBtn'),
     lobbyPreview: $('lobbyPreview'), enableMediaBtn: $('enableMediaBtn'), mediaStatus: $('mediaStatus'),
-    camLog: $('camLog')
+    camLog: $('camLog'),
+    attachBtn: $('attachBtn'), fileInput: $('fileInput'), qualityBtn: $('qualityBtn'),
+    layoutBtn: $('layoutBtn'), thumbSlot: $('thumbSlot'), muteGuestBtn: $('muteGuestBtn'), peerLabel: $('peerLabel')
   };
 
   var PREFIX = 'wrtc2-';   // namespaces our room IDs on the public PeerJS cloud
@@ -891,6 +916,7 @@
     els.camBtn.disabled = false;
     els.micBtn.disabled = false;
     els.flipBtn.disabled = videoDevices.length < 2;
+    els.qualityBtn.disabled = false;
     els.shareBtn.disabled = false;
   }
 
@@ -932,6 +958,8 @@
       });
       els.remoteVideo.play().catch(function () {});
       setStatus('Connected');
+      autoLevel = 0; goodChecks = 0;
+      applyQuality();
       reconnectAttempts = 0;
       els.reconnectBtn.hidden = true;
       startStatsMonitor();
@@ -951,12 +979,23 @@
     conn.on('open', function () {
       els.chatInput.disabled = false;
       els.sendBtn.disabled = false;
+      els.attachBtn.disabled = false;
       sys('Chat connected.');
       setStatus('Connected');
+      if (role === 'host') {
+        els.muteGuestBtn.hidden = false;
+        els.muteGuestBtn.disabled = false;
+        if (peerMutedByHost) conn.send({ type: 'host-mute', muted: true });
+      }
+      sendMicState();
     });
 
     conn.on('data', function (data) {
-      if (data && data.type === 'chat') addMsg('them', 'Peer', String(data.text));
+      if (!data) return;
+      if (data.type === 'chat') addMsg('them', 'Peer', String(data.text));
+      else if (data.type === 'host-mute') handleHostMute(!!data.muted);
+      else if (data.type === 'mic-state') els.peerLabel.textContent = 'Peer' + (data.on ? '' : ' \u{1F507}');
+      else handleFileMessage(data);
     });
 
     conn.on('close', onPeerGone);
@@ -975,11 +1014,15 @@
     if (suppressPeerGone) return;
     if (!roomCode) return;
     stopStatsMonitor();
+    incoming = {};
+    els.muteGuestBtn.disabled = true;
+    els.peerLabel.textContent = 'Peer';
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     setStatus('Peer left');
     sys('Peer disconnected.');
     els.chatInput.disabled = true;
     els.sendBtn.disabled = true;
+    els.attachBtn.disabled = true;
     els.netBadge.hidden = true;
     els.reconnectBtn.hidden = true;
     els.remoteVideo.srcObject = null;
@@ -1078,6 +1121,7 @@
           });
         }
         updateNetBadge(localType);
+        if (qualityMode === 'auto') autoAdjust(stats, pairId);
       }).catch(function () {});
     }, 3000);
   }
@@ -1149,6 +1193,286 @@
     if (e.key === 'Enter') sendChat();
   });
 
+  /* ---------------- file attachments ---------------- */
+  // Files travel over the same reliable, ordered data channel as chat,
+  // split into 16 KB chunks with back-pressure so big files don't flood
+  // the connection. (Through a TURN relay this uses relay bandwidth.)
+
+  var MAX_FILE = 50 * 1024 * 1024;
+  var CHUNK = 16 * 1024;
+  var incoming = {};
+  var fileQueue = Promise.resolve();
+
+  function fmtSize(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1048576).toFixed(1) + ' MB';
+  }
+
+  function addFileMsg(cls, who, name, size, note) {
+    var row = document.createElement('div');
+    row.className = 'msg ' + cls;
+    var b = document.createElement('b');
+    b.textContent = who + ': ';
+    row.appendChild(b);
+    var label = document.createElement('span');
+    label.textContent = '\u{1F4CE} ' + name + ' (' + fmtSize(size) + ') ' + (note || '');
+    row.appendChild(label);
+    var bar = document.createElement('progress');
+    bar.max = 1; bar.value = 0;
+    row.appendChild(bar);
+    els.chatLog.appendChild(row);
+    els.chatLog.scrollTop = els.chatLog.scrollHeight;
+    return {
+      progress: function (f) { bar.value = f; },
+      note: function (t) { label.textContent = '\u{1F4CE} ' + name + ' (' + fmtSize(size) + ') ' + t; bar.remove(); },
+      link: function (blob, mime) {
+        bar.remove();
+        var url = URL.createObjectURL(blob);
+        label.textContent = '';
+        var a = document.createElement('a');
+        a.href = url; a.download = name;
+        a.textContent = '\u{1F4CE} ' + name + ' (' + fmtSize(size) + ') \u2014 download';
+        label.appendChild(a);
+        if (/^image\/(png|jpeg|gif|webp)$/.test(mime) && size < 10 * 1048576) {
+          var img = document.createElement('img');
+          img.className = 'thumb'; img.src = url; img.alt = name;
+          row.appendChild(img);
+        }
+        els.chatLog.scrollTop = els.chatLog.scrollHeight;
+      }
+    };
+  }
+
+  function sendFile(file) {
+    return new Promise(function (resolve) {
+      if (!conn || !conn.open) { sys('Chat not ready — file not sent.'); return resolve(); }
+      if (file.size > MAX_FILE) { sys('"' + file.name + '" is larger than 50 MB and was not sent.'); return resolve(); }
+      var id = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+      var ui = addFileMsg('me', 'You', file.name, file.size, '\u2014 sending\u2026');
+      var offset = 0, seq = 0;
+      conn.send({ type: 'file-start', id: id, name: file.name, size: file.size, mime: file.type || 'application/octet-stream' });
+      function pump() {
+        if (!conn || !conn.open) { ui.note('\u2014 interrupted'); return resolve(); }
+        var dc = conn.dataChannel;
+        if (dc && dc.bufferedAmount > 1048576) { setTimeout(pump, 60); return; }
+        file.slice(offset, offset + CHUNK).arrayBuffer().then(function (buf) {
+          conn.send({ type: 'file-chunk', id: id, seq: seq++, data: buf });
+          offset += buf.byteLength;
+          ui.progress(offset / file.size);
+          if (offset < file.size) pump();
+          else {
+            conn.send({ type: 'file-end', id: id });
+            ui.note('\u2014 sent \u2713');
+            resolve();
+          }
+        }).catch(function () { ui.note('\u2014 failed'); resolve(); });
+      }
+      if (file.size === 0) { conn.send({ type: 'file-end', id: id }); ui.note('\u2014 sent \u2713'); return resolve(); }
+      pump();
+    });
+  }
+
+  function handleFileMessage(d) {
+    if (d.type === 'file-start') {
+      var name = String(d.name || 'file').slice(0, 120);
+      incoming[d.id] = { name: name, size: +d.size || 0, mime: String(d.mime || ''), chunks: [], got: 0,
+        ui: addFileMsg('them', 'Peer', name, +d.size || 0, '\u2014 receiving\u2026') };
+    } else if (d.type === 'file-chunk') {
+      var f = incoming[d.id];
+      if (!f || !d.data) return;
+      f.chunks[d.seq] = d.data;
+      f.got += d.data.byteLength || d.data.size || 0;
+      if (f.size) f.ui.progress(Math.min(1, f.got / f.size));
+    } else if (d.type === 'file-end') {
+      var g = incoming[d.id];
+      if (!g) return;
+      delete incoming[d.id];
+      g.ui.link(new Blob(g.chunks, { type: g.mime }), g.mime);
+    }
+  }
+
+  els.attachBtn.addEventListener('click', function () { els.fileInput.click(); });
+  els.fileInput.addEventListener('change', function () {
+    Array.prototype.slice.call(els.fileInput.files).forEach(function (f) {
+      fileQueue = fileQueue.then(function () { return sendFile(f); });
+    });
+    els.fileInput.value = '';
+  });
+
+  /* ---------------- video quality (manual + auto) ---------------- */
+  // Each side controls only what it SENDS. Lowering quality caps bitrate,
+  // resolution and frame rate of our outgoing video so a weak connection
+  // keeps the call (and audio) smooth. "Auto" watches packet loss, round-trip
+  // time and available bandwidth every 3 s and steps down quickly when the
+  // link is struggling, and back up slowly once it has been stable.
+
+  var LEVELS = ['high', 'medium', 'low', 'minimal'];
+  var QUALITY = {
+    high:    { maxBitrate: 1500000, scale: 1,   fps: 30 },
+    medium:  { maxBitrate: 600000,  scale: 1.5, fps: 24 },
+    low:     { maxBitrate: 250000,  scale: 2.5, fps: 15 },
+    minimal: { maxBitrate: 100000,  scale: 4,   fps: 10 }
+  };
+  var MODES = ['auto', 'high', 'medium', 'low'];
+  var qualityMode = 'auto';
+  var autoLevel = 0;
+  var goodChecks = 0;
+
+  function currentLevel() {
+    return qualityMode === 'auto' ? LEVELS[autoLevel] : qualityMode;
+  }
+
+  function updateQualityBtn() {
+    var lv = currentLevel();
+    var cap = lv.charAt(0).toUpperCase() + lv.slice(1);
+    els.qualityBtn.textContent = qualityMode === 'auto' ? 'Quality: Auto (' + cap + ')' : 'Quality: ' + cap;
+  }
+
+  function applyQuality() {
+    updateQualityBtn();
+    if (!call || !call.peerConnection) return;
+    var sender = call.peerConnection.getSenders().filter(function (s) {
+      return s.track && s.track.kind === 'video';
+    })[0];
+    if (!sender || !sender.getParameters) return;
+    var q = QUALITY[currentLevel()];
+    var params = sender.getParameters();
+    if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+    params.encodings[0].maxBitrate = q.maxBitrate;
+    params.encodings[0].maxFramerate = q.fps;
+    params.encodings[0].scaleResolutionDownBy = q.scale;
+    sender.setParameters(params).catch(function () {
+      // some browsers reject scale/fps; retry with the bitrate cap alone
+      var p2 = sender.getParameters();
+      if (!p2.encodings || !p2.encodings.length) p2.encodings = [{}];
+      p2.encodings[0].maxBitrate = q.maxBitrate;
+      sender.setParameters(p2).catch(function () {});
+    });
+  }
+
+  function autoAdjust(stats, pairId) {
+    var loss = null, rtt = null, avail = null;
+    stats.forEach(function (r) {
+      if (r.type === 'remote-inbound-rtp' && (r.kind === 'video' || r.mediaType === 'video')) {
+        if (typeof r.fractionLost === 'number') loss = r.fractionLost;
+        if (typeof r.roundTripTime === 'number') rtt = r.roundTripTime;
+      }
+      if (pairId && r.id === pairId && typeof r.availableOutgoingBitrate === 'number') avail = r.availableOutgoingBitrate;
+    });
+    var cur = QUALITY[LEVELS[autoLevel]];
+    var bad = (loss !== null && loss > 0.08) || (rtt !== null && rtt > 0.5) ||
+              (avail !== null && avail < cur.maxBitrate * 0.7);
+    var nextUp = autoLevel > 0 ? QUALITY[LEVELS[autoLevel - 1]] : null;
+    var good = (loss === null || loss < 0.02) && (rtt === null || rtt < 0.25) &&
+               (avail === null || !nextUp || avail > nextUp.maxBitrate * 1.3);
+    if (bad) {
+      goodChecks = 0;
+      if (autoLevel < LEVELS.length - 1) {
+        autoLevel++;
+        applyQuality();
+        sys('Poor connection detected \u2014 video quality lowered to ' + LEVELS[autoLevel] + '.');
+      }
+    } else if (good) {
+      if (++goodChecks >= 5 && autoLevel > 0) {
+        goodChecks = 0;
+        autoLevel--;
+        applyQuality();
+        sys('Connection is stable \u2014 video quality raised to ' + LEVELS[autoLevel] + '.');
+      }
+    } else {
+      goodChecks = 0;
+    }
+  }
+
+  els.qualityBtn.addEventListener('click', function () {
+    qualityMode = MODES[(MODES.indexOf(qualityMode) + 1) % MODES.length];
+    goodChecks = 0;
+    if (qualityMode === 'auto') autoLevel = 0;
+    applyQuality();
+    sys(qualityMode === 'auto' ? 'Video quality: automatic.' : 'Video quality set to ' + qualityMode + '.');
+  });
+
+  /* ---------------- layout: split / maximize ---------------- */
+  // Split shows both views side by side. Maximize shows one view full size
+  // and moves the other into a thumbnail in the top bar (click the thumbnail
+  // to swap). The same <video> elements are moved, so streams keep playing.
+
+  function setLayout(mode) {
+    var vids = $('videos'), tl = $('tileLocal'), tr = $('tileRemote');
+    if (mode === 'split') {
+      vids.classList.remove('maximized');
+      vids.appendChild(tl);
+      vids.appendChild(tr);
+    } else {
+      var big = mode === 'max-remote' ? tr : tl;
+      var small = big === tr ? tl : tr;
+      vids.classList.add('maximized');
+      vids.appendChild(big);
+      els.thumbSlot.appendChild(small);
+    }
+    els.layoutBtn.hidden = mode === 'split';
+    [els.localVideo, els.remoteVideo].forEach(function (v) {
+      var pr = v.play();
+      if (pr && pr.catch) pr.catch(function () {});
+    });
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.maxBtn'), function (b) {
+    b.addEventListener('click', function () { setLayout('max-' + b.getAttribute('data-tile')); });
+  });
+  els.thumbSlot.addEventListener('click', function (e) {
+    var tile = e.target.closest ? e.target.closest('.tile') : null;
+    if (tile) setLayout(tile.id === 'tileLocal' ? 'max-local' : 'max-remote');
+  });
+  els.layoutBtn.addEventListener('click', function () { setLayout('split'); });
+
+  /* ---------------- host mutes / unmutes the peer ---------------- */
+  // Host mute locks the guest's mic off (their button is disabled). Host
+  // unmute only lifts the lock and restores the guest's previous choice — it
+  // never switches on a microphone the guest had turned off themselves.
+
+  var peerMutedByHost = false;   // host side
+  var lockedByHost = false;      // guest side
+  var micBeforeLock = true;
+
+  function updateMuteGuestBtn() {
+    els.muteGuestBtn.textContent = peerMutedByHost ? 'Unmute peer' : 'Mute peer';
+  }
+
+  function sendMicState() {
+    if (conn && conn.open) conn.send({ type: 'mic-state', on: !!micTrack && micOn });
+  }
+
+  els.muteGuestBtn.addEventListener('click', function () {
+    if (role !== 'host' || !conn || !conn.open) return;
+    peerMutedByHost = !peerMutedByHost;
+    conn.send({ type: 'host-mute', muted: peerMutedByHost });
+    updateMuteGuestBtn();
+    sys(peerMutedByHost ? 'You muted the peer.' : 'You unmuted the peer (they can use their mic again).');
+  });
+
+  function handleHostMute(muted) {
+    if (role !== 'guest') return;
+    if (muted) {
+      if (!lockedByHost) micBeforeLock = micOn;
+      lockedByHost = true;
+      micOn = false;
+      if (micTrack) micTrack.enabled = false;
+      els.micBtn.textContent = 'Mic: Muted by host';
+      els.micBtn.disabled = true;
+      sys('The host muted your microphone.');
+    } else {
+      lockedByHost = false;
+      micOn = micBeforeLock;
+      if (micTrack) micTrack.enabled = micOn;
+      els.micBtn.textContent = 'Mic: ' + (micOn ? 'On' : 'Off');
+      els.micBtn.disabled = false;
+      sys('The host unmuted you' + (micOn && micTrack ? ' \u2014 your mic is back on.' : ' \u2014 your mic stays off until you turn it on.'));
+    }
+    sendMicState();
+  }
+
   /* ---------------- camera / mic toggles ---------------- */
 
   els.camBtn.addEventListener('click', function () {
@@ -1163,6 +1487,7 @@
     micOn = !micOn;
     micTrack.enabled = micOn;
     els.micBtn.textContent = 'Mic: ' + (micOn ? 'On' : 'Off');
+    sendMicState();
   });
 
   /* ---------------- screen sharing (+ system audio) ---------------- */
@@ -1311,9 +1636,18 @@
     els.chatInput.value = '';
     els.chatInput.disabled = true;
     els.sendBtn.disabled = true;
+    els.attachBtn.disabled = true;
     els.camBtn.disabled = true;
     els.micBtn.disabled = true;
     els.flipBtn.disabled = true;
+    els.qualityBtn.disabled = true;
+    incoming = {};
+    els.muteGuestBtn.hidden = true;
+    els.muteGuestBtn.disabled = true;
+    peerMutedByHost = false; lockedByHost = false; micBeforeLock = true;
+    updateMuteGuestBtn();
+    els.peerLabel.textContent = 'Peer';
+    setLayout('split');
     els.camBtn.textContent = 'Camera: On';
     els.micBtn.textContent = 'Mic: On';
     els.shareBtn.disabled = true;
