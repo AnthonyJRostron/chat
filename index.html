@@ -24,6 +24,8 @@
   button.primary:hover:not(:disabled) { background: #2ea043; }
   button.danger { background: #da3633; border-color: #f85149; }
   button.danger:hover:not(:disabled) { background: #f85149; }
+  button.warn { background: #9e6a03; border-color: #d29922; }
+  button.warn:hover:not(:disabled) { background: #bb8009; }
   input[type=text] {
     background: #0d1117; border: 1px solid #30363d; color: #e6edf3;
     padding: 9px 12px; border-radius: 6px; outline: none; font-size: 14px;
@@ -59,7 +61,30 @@
   .or { text-align: center; color: #484f58; font-size: 12px; margin: 16px 0; }
   #lobbyStatus { margin-top: 16px; font-size: 12px; color: #f85149; min-height: 16px; }
 
-  /* ---------- Quick rooms (guest) ---------- */
+  /* Role toggle */
+  .roleToggle {
+    display: flex; gap: 0; margin: 0 0 18px;
+    border: 1px solid #30363d; border-radius: 8px; overflow: hidden;
+    background: #0d1117;
+  }
+  .roleToggle label {
+    flex: 1; text-align: center; cursor: pointer;
+    padding: 10px 12px; font-size: 13px; color: #8b949e;
+    user-select: none;
+    transition: background .15s, color .15s;
+  }
+  .roleToggle label:hover { background: #161b22; }
+  .roleToggle input { display: none; }
+  .roleToggle input:checked + span { color: #e6edf3; font-weight: 600; }
+  .roleToggle label:has(input:checked) {
+    background: #1f6feb;
+    color: #fff;
+  }
+
+  /* Sections */
+  .lobbySection[hidden] { display: none; }
+
+  /* ---------- Quick rooms ---------- */
   .quickRoomsHeader {
     display: flex; justify-content: space-between; align-items: center;
     margin: 14px 0 6px;
@@ -169,18 +194,13 @@
     #sidebar { width: auto; height: 240px; border-left: none; border-top: 1px solid #30363d; }
   }
 
-  /* Floating "Open chat" pill, shown when sidebar is collapsed */
+  /* Floating "Open chat" pill */
   #expandChatBtn {
     position: fixed;
-    right: 16px;
-    bottom: 76px;
+    right: 16px; bottom: 76px;
     z-index: 400;
-    padding: 10px 16px;
-    font-size: 13px;
-    font-weight: 600;
-    background: #238636;
-    border-color: #2ea043;
-    color: #fff;
+    padding: 10px 16px; font-size: 13px; font-weight: 600;
+    background: #238636; border-color: #2ea043; color: #fff;
     box-shadow: 0 4px 14px rgba(0,0,0,0.5);
     display: flex; align-items: center; gap: 6px;
   }
@@ -193,15 +213,12 @@
   }
   #expandChatBtn .badgeDot[hidden] { display: none; }
 
-  /* Flash message input bar (host) */
+  /* Flash input bar */
   #flashBar {
     position: fixed;
-    right: 16px;
-    bottom: 76px;
-    background: #161b22;
-    border: 1px solid #30363d;
-    border-radius: 10px;
-    padding: 10px;
+    right: 16px; bottom: 76px;
+    background: #161b22; border: 1px solid #30363d;
+    border-radius: 10px; padding: 10px;
     display: flex; gap: 8px; align-items: center;
     z-index: 700;
     box-shadow: 0 8px 24px rgba(0,0,0,0.6);
@@ -214,11 +231,10 @@
     #flashBar input[type=text] { min-width: 0; width: 100%; }
   }
 
-  /* Flash overlay (message shown over the video area) */
+  /* Flash overlay */
   #flashOverlay {
     position: fixed;
-    left: 50%;
-    top: 84px;
+    left: 50%; top: 84px;
     transform: translateX(-50%);
     max-width: min(90vw, 760px);
     background: rgba(13,17,23,0.9);
@@ -233,8 +249,7 @@
     z-index: 800;
     pointer-events: none;
     box-shadow: 0 10px 36px rgba(0,0,0,0.75);
-    white-space: pre-wrap;
-    word-break: break-word;
+    white-space: pre-wrap; word-break: break-word;
     animation: flashIn .3s ease-out;
   }
   #flashOverlay[hidden] { display: none; }
@@ -264,6 +279,7 @@
   .badge.direct { border-color: #2ea043; color: #3fb950; }
   .badge.relay  { border-color: #d29922; color: #e3b341; }
   .badge.bad    { border-color: #f85149; color: #f85149; }
+  .badge.mod    { border-color: #d29922; color: #e3b341; background: #2b2111; }
   .advToggle {
     background: none; border: none; color: #58a6ff; font-size: 12px;
     cursor: pointer; padding: 0; margin-top: 16px; text-decoration: underline;
@@ -359,7 +375,7 @@
     background: #2b2111; border: 1px solid #d29922; color: #f0c674;
     font-size: 12px; line-height: 1.55;
   }
-  .modal .closeRow { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
+  .modal .closeRow { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; flex-wrap: wrap; }
   .helpSection[hidden] { display: none; }
   .helpSection h3 { color: #58a6ff; }
 
@@ -414,7 +430,19 @@
   <div class="card">
     <h1>English Class Chat</h1>
     <p style="margin-top:-6px;color:#58a6ff">by Anthony Rostron</p>
-    <p>Two-person video call with chat and screen sharing. Create a room, then share the code with the other person.</p>
+
+    <div class="roleToggle">
+      <label>
+        <input type="radio" name="userRole" value="student" />
+        <span>Student</span>
+      </label>
+      <label>
+        <input type="radio" name="userRole" value="teacher" />
+        <span>Teacher</span>
+      </label>
+    </div>
+
+    <p id="roleIntro" style="margin-bottom:18px">Two-person video call with chat and screen sharing.</p>
 
     <div class="mediaPreviewWrap">
       <video id="lobbyPreview" autoplay muted playsinline></video>
@@ -443,26 +471,35 @@
       <button id="showHelpBtn" type="button">Show me how to fix it</button>
     </div>
 
-    <label class="fieldLabel" for="roomNameInput" style="margin-top:16px">Room name (optional)</label>
-    <div class="row">
-      <input id="roomNameInput" type="text" list="hostRoomsList" placeholder="eg. ANTHONY" maxlength="12" autocomplete="off" />
-      <button id="editRoomsBtnLobby" type="button" title="Manage saved rooms">Rooms…</button>
+    <!-- Teacher: create room -->
+    <div id="createSection" class="lobbySection">
+      <label class="fieldLabel" for="roomNameInput">Room name (optional)</label>
+      <div class="row">
+        <input id="roomNameInput" type="text" list="hostRoomsList" placeholder="eg. ANTHONY" maxlength="12" autocomplete="off" />
+        <button id="editRoomsBtnLobby" type="button" title="Manage saved rooms">Rooms…</button>
+      </div>
+      <datalist id="hostRoomsList"></datalist>
+      <p class="hint" style="margin:6px 0 12px;font-size:11px;color:#484f58;line-height:1.5">
+        Capital letters and numbers only, 3–12 characters. Leave blank for a random code.
+      </p>
+      <button id="createBtn" class="primary" style="width:100%">Create a room</button>
     </div>
-    <datalist id="hostRoomsList"></datalist>
-    <p class="hint" style="margin:6px 0 12px;font-size:11px;color:#484f58;line-height:1.5">
-      Capital letters and numbers only, 3–12 characters. Leave blank for a random code.
-    </p>
 
-    <button id="createBtn" class="primary" style="width:100%">Create a room</button>
-    <div class="or">or join an existing room</div>
-    <div class="row">
-      <input id="joinInput" type="text" placeholder="Room name" maxlength="12" autocomplete="off" />
-      <button id="joinBtn">Join</button>
+    <!-- Student: join room -->
+    <div id="joinSection" class="lobbySection" hidden>
+      <label class="fieldLabel" for="joinInput">Room name</label>
+      <div class="row">
+        <input id="joinInput" type="text" placeholder="eg. ANTHONY" maxlength="12" autocomplete="off" />
+        <button id="joinBtn">Join</button>
+      </div>
+      <p class="hint" style="margin:6px 0 12px;font-size:11px;color:#484f58;line-height:1.5">
+        Capital letters and numbers only.
+      </p>
     </div>
 
     <div id="quickRooms" hidden>
       <div class="quickRoomsHeader">
-        <span class="fieldLabel">Quick connect</span>
+        <span class="fieldLabel" id="quickRoomsLabel">Quick connect</span>
         <button id="clearQuickRoomsBtn" type="button" class="linkBtn">Clear</button>
       </div>
       <div id="quickRoomsList" class="quickRoomList"></div>
@@ -513,6 +550,7 @@
     <button id="copyBtn" title="Copy room code">Copy</button>
     <select id="hostRoomSelect" class="hostRoomSelect" hidden title="Switch room"></select>
     <button id="editRoomsBtnRoom" class="smallBtn" hidden title="Manage saved rooms">Rooms…</button>
+    <span class="badge mod" id="moderatorBadge" hidden>Moderator</span>
     <span class="badge" id="netBadge" hidden>–</span>
     <button id="layoutBtn" hidden>Split view</button>
     <div id="thumbSlot"></div>
@@ -559,6 +597,7 @@
     <button id="muteGuestBtn" hidden disabled>Mute peer</button>
     <button id="qualityBtn" disabled title="Reduce video quality to save bandwidth">Quality: Auto</button>
     <button id="flashBtn" hidden title="Show a short message on the peer's video">Flash message</button>
+    <button id="makeModBtn" hidden title="Give or take back moderator control">Make moderator</button>
     <button id="shareBtn" disabled>Share screen + audio</button>
     <button id="stopShareBtn" class="danger" hidden>Stop sharing</button>
     <button id="reconnectBtn" hidden>Reconnect now</button>
@@ -566,7 +605,7 @@
   </footer>
 </div>
 
-<!-- Flash input bar (host only) -->
+<!-- Flash input bar (moderator only) -->
 <div id="flashBar" hidden>
   <input id="flashInput" type="text" maxlength="200" placeholder="Flash message for peer (visible 5 s)…" autocomplete="off" />
   <button id="flashSendBtn" type="button" class="primary">Send</button>
@@ -576,7 +615,7 @@
 <!-- Chat expand pill -->
 <button id="expandChatBtn" hidden type="button">💬 Chat <span id="chatBadge" class="badgeDot" hidden>0</span></button>
 
-<!-- Flash overlay shown over the video area -->
+<!-- Flash overlay -->
 <div id="flashOverlay" hidden></div>
 
 <!-- ============ WAITING ROOM ============ -->
@@ -600,6 +639,25 @@
     <div class="closeRow">
       <button id="roomsSaveBtn" class="primary" type="button">Save</button>
       <button id="roomsCancelBtn" type="button">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TAKEOVER MODAL ============ -->
+<div id="takeoverModal" class="modal-overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="takeoverTitle">
+    <h2 id="takeoverTitle">Room name already in use</h2>
+    <p>
+      The room name <code id="takeoverName">------</code> is currently held by another connected peer.
+    </p>
+    <p>
+      As a teacher you can still take part: joining will put you in the room as a
+      <strong>teacher-guest</strong> with all your moderator controls available. You'll
+      receive moderator control automatically.
+    </p>
+    <div class="closeRow">
+      <button id="takeoverJoinBtn" class="primary" type="button">Join as teacher</button>
+      <button id="takeoverCancelBtn" type="button">Cancel</button>
     </div>
   </div>
 </div>
@@ -676,6 +734,8 @@
 
   var els = {
     lobby: $('lobby'), room: $('room'),
+    roleIntro: $('roleIntro'),
+    createSection: $('createSection'), joinSection: $('joinSection'),
     createBtn: $('createBtn'), joinBtn: $('joinBtn'), joinInput: $('joinInput'),
     roomNameInput: $('roomNameInput'),
     lobbyStatus: $('lobbyStatus'),
@@ -693,6 +753,8 @@
     flashBar: $('flashBar'), flashInput: $('flashInput'),
     flashSendBtn: $('flashSendBtn'), flashCloseBtn: $('flashCloseBtn'),
     flashOverlay: $('flashOverlay'),
+    makeModBtn: $('makeModBtn'),
+    moderatorBadge: $('moderatorBadge'),
     shareBtn: $('shareBtn'), stopShareBtn: $('stopShareBtn'),
     hangupBtn: $('hangupBtn'), reconnectBtn: $('reconnectBtn'),
     netBadge: $('netBadge'), netDiag: $('netDiag'),
@@ -713,12 +775,16 @@
     helpModal: $('helpModal'), helpCloseBtn: $('helpCloseBtn'), helpRetryBtn: $('helpRetryBtn'),
     helpBrowserName: $('helpBrowserName'),
     helpIos: $('helpIos'), helpAndroid: $('helpAndroid'), helpGeneric: $('helpGeneric'),
-    quickRooms: $('quickRooms'), quickRoomsList: $('quickRoomsList'), clearQuickRoomsBtn: $('clearQuickRoomsBtn'),
+    quickRooms: $('quickRooms'), quickRoomsList: $('quickRoomsList'),
+    quickRoomsLabel: $('quickRoomsLabel'),
+    clearQuickRoomsBtn: $('clearQuickRoomsBtn'),
     hostRoomsList: $('hostRoomsList'), hostRoomSelect: $('hostRoomSelect'),
     editRoomsBtnLobby: $('editRoomsBtnLobby'), editRoomsBtnRoom: $('editRoomsBtnRoom'),
     roomsModal: $('roomsModal'), roomsList: $('roomsList'), addRoomBtn: $('addRoomBtn'),
     roomsSaveBtn: $('roomsSaveBtn'), roomsCancelBtn: $('roomsCancelBtn'),
-    waitingRoom: $('waitingRoom'), waitingRoomCode: $('waitingRoomCode'), cancelWaitBtn: $('cancelWaitBtn')
+    waitingRoom: $('waitingRoom'), waitingRoomCode: $('waitingRoomCode'), cancelWaitBtn: $('cancelWaitBtn'),
+    takeoverModal: $('takeoverModal'), takeoverName: $('takeoverName'),
+    takeoverJoinBtn: $('takeoverJoinBtn'), takeoverCancelBtn: $('takeoverCancelBtn')
   };
 
   var PREFIX = 'wrtc2-';
@@ -726,6 +792,49 @@
   var LS_DEVICE_KEY = 'wrtc2-device-prefs';
   var LS_HOST_ROOMS = 'wrtc2-host-rooms';
   var LS_GUEST_ROOMS = 'wrtc2-guest-rooms';
+  var LS_USER_ROLE = 'wrtc2-user-role';
+
+  /* ---------------- user role ---------------- */
+  var userRole = 'student';   // 'student' | 'teacher'
+  try {
+    var savedRole = localStorage.getItem(LS_USER_ROLE);
+    if (savedRole === 'teacher' || savedRole === 'student') userRole = savedRole;
+  } catch (e) {}
+
+  function saveUserRole(r) {
+    try { localStorage.setItem(LS_USER_ROLE, r); } catch (e) {}
+  }
+
+  function applyUserRoleUI() {
+    // Radio states
+    var radios = document.querySelectorAll('input[name="userRole"]');
+    Array.prototype.forEach.call(radios, function (r) {
+      r.checked = (r.value === userRole);
+    });
+
+    if (userRole === 'teacher') {
+      els.createSection.hidden = false;
+      els.joinSection.hidden = true;
+      els.roleIntro.textContent = 'Create a room for your class, then share the code with your student.';
+      els.quickRoomsLabel.textContent = 'My rooms (one-tap create)';
+    } else {
+      els.createSection.hidden = true;
+      els.joinSection.hidden = false;
+      els.roleIntro.textContent = 'Join the video call your teacher set up by typing the room name.';
+      els.quickRoomsLabel.textContent = 'Quick connect (one-tap join)';
+    }
+    renderQuickRooms();
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="userRole"]'), function (r) {
+    r.addEventListener('change', function () {
+      if (!r.checked) return;
+      userRole = r.value;
+      saveUserRole(userRole);
+      lobbyError('');
+      applyUserRoleUI();
+    });
+  });
 
   /* ---------------- STUN/TURN ---------------- */
   var BUILTIN_STUN = [
@@ -851,8 +960,8 @@
   }
 
   function renderQuickRooms() {
-    var list = loadGuestRooms();
     if (!els.quickRooms) return;
+    var list = userRole === 'teacher' ? loadHostRooms() : loadGuestRooms();
     els.quickRooms.hidden = list.length === 0;
     els.quickRoomsList.innerHTML = '';
     list.forEach(function (name) {
@@ -861,15 +970,22 @@
       b.className = 'quickRoomBtn';
       b.textContent = name;
       b.addEventListener('click', function () {
-        els.joinInput.value = name;
-        els.joinBtn.click();
+        if (userRole === 'teacher') {
+          // one-tap create
+          els.roomNameInput.value = name;
+          els.createBtn.click();
+        } else {
+          els.joinInput.value = name;
+          els.joinBtn.click();
+        }
       });
       els.quickRoomsList.appendChild(b);
     });
   }
 
   els.clearQuickRoomsBtn.addEventListener('click', function () {
-    saveGuestRooms([]);
+    if (userRole === 'teacher') { saveHostRooms([]); renderHostRooms(); }
+    else { saveGuestRooms([]); }
     renderQuickRooms();
   });
 
@@ -931,6 +1047,7 @@
     });
     saveHostRooms(list);
     renderHostRooms();
+    renderQuickRooms();
     closeRoomsModal();
   });
 
@@ -941,6 +1058,7 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
       if (!els.roomsModal.hidden) closeRoomsModal();
+      else if (!els.takeoverModal.hidden) closeTakeoverModal();
       else if (!els.helpModal.hidden) closeHelpModal();
       else if (!els.flashBar.hidden) closeFlashBar();
     }
@@ -948,6 +1066,44 @@
 
   els.editRoomsBtnLobby.addEventListener('click', openRoomsModal);
   if (els.editRoomsBtnRoom) els.editRoomsBtnRoom.addEventListener('click', openRoomsModal);
+
+  /* ---------------- takeover modal ---------------- */
+  var pendingTakeoverName = null;
+
+  function showTakeoverModal(name) {
+    pendingTakeoverName = name;
+    els.takeoverName.textContent = name;
+    els.takeoverModal.hidden = false;
+  }
+  function closeTakeoverModal() {
+    els.takeoverModal.hidden = true;
+    pendingTakeoverName = null;
+  }
+
+  els.takeoverJoinBtn.addEventListener('click', function () {
+    if (!pendingTakeoverName) { closeTakeoverModal(); return; }
+    var name = pendingTakeoverName;
+    closeTakeoverModal();
+
+    role = 'guest';
+    isTeacherGuest = true;
+    roomCode = name;
+    usingCustomName = false;
+    connectionAnnounced = false;
+    // Guest joins with a random peer ID (null argument).
+    bootPeer(null);
+  });
+
+  els.takeoverCancelBtn.addEventListener('click', function () {
+    closeTakeoverModal();
+    resetCreateUI();
+    els.roomNameInput.focus();
+    els.roomNameInput.select();
+  });
+
+  els.takeoverModal.addEventListener('click', function (e) {
+    if (e.target === els.takeoverModal) closeTakeoverModal();
+  });
 
   /* ---------------- connection chime ---------------- */
   var connectionAnnounced = false;
@@ -985,7 +1141,6 @@
   /* ---------------- waiting room ---------------- */
   var waitingForHost = false;
   var waitForHostTimer = null;
-
   function enterWaitingRoom() {
     if (waitingForHost) return;
     waitingForHost = true;
@@ -1017,7 +1172,10 @@
 
   /* ---------------- session state ---------------- */
   var peer = null;
-  var role = null;
+  var role = null;                // 'host' | 'guest'
+  var isTeacherGuest = false;     // teacher joining a taken room
+  var hasModerator = false;       // do WE currently hold moderator?
+  var peerHasModerator = false;   // does the other side hold moderator?
   var roomCode = null;
   var localStream = null;
   var remoteStream = null;
@@ -1039,17 +1197,13 @@
   var sysGainNode = null;
   var mixedAudioTrack = null;
 
-  // NEW: outgoing mode
-  // viewMode: 'camera' | 'screen'  → which video goes on the wire
-  // useSysAudio: boolean          → mix system audio into the outgoing audio
+  // Outgoing mode
   var viewMode = 'camera';
   var useSysAudio = false;
 
-  // Chat queueing + transcript
+  // Chat
   var pendingMessages = [];
   var transcript = [];
-
-  // Chat auto-collapse
   var chatPinned = false;
   var chatCollapseTimer = null;
   var CHAT_IDLE_MS = 30000;
@@ -1117,7 +1271,6 @@
     els.helpModal.hidden = false;
   }
   function closeHelpModal() { els.helpModal.hidden = true; }
-
   els.showHelpBtn.addEventListener('click', openHelpModal);
   els.helpCloseBtn.addEventListener('click', closeHelpModal);
   els.helpRetryBtn.addEventListener('click', function () {
@@ -1130,7 +1283,6 @@
 
   function showSettingsWarning() { els.settingsWarn.classList.add('show'); }
   function hideSettingsWarning() { els.settingsWarn.classList.remove('show'); }
-
   function isPermissionError(err) {
     if (!err) return false;
     var n = err.name || '';
@@ -1243,7 +1395,6 @@
     els.signalKey.value = adv.signalKey || '';
     els.forceRelay.checked = !!adv.forceRelay;
   })();
-
   els.advToggleBtn.addEventListener('click', function () { els.advPanel.classList.toggle('show'); });
   els.saveAdvBtn.addEventListener('click', function () {
     saveAdv({
@@ -1284,7 +1435,6 @@
         return 'Could not access camera/microphone: ' + (err && err.message ? err.message : 'unknown error.');
     }
   }
-
   function camLog(msg) {
     console.log(msg);
     if (!els.camLog) return;
@@ -1596,7 +1746,7 @@
     else requestMedia().catch(function () {});
   });
 
-  /* ---------------- switch camera (footer) ---------------- */
+  /* ---------------- switch camera ---------------- */
   function replaceVideoTrack(newTrack) {
     if (camTrack) {
       try { localStream.removeTrack(camTrack); } catch (e) {}
@@ -1609,10 +1759,7 @@
     if (viewMode === 'camera' || !screenStream) {
       els.localVideo.srcObject = localStream;
     }
-    if (viewMode === 'screen' && screenStream) {
-      // still showing the screen: nothing to send
-      return;
-    }
+    if (viewMode === 'screen' && screenStream) return;
     syncOutboundToCall();
   }
 
@@ -1630,13 +1777,10 @@
   els.flipBtn.addEventListener('click', flipCamera);
 
   /* ---------------- outbound track sync ---------------- */
-  // Sends the correct video + audio tracks to the peer based on viewMode
-  // and useSysAudio, regardless of whether the call exists yet.
   function syncOutboundToCall() {
     if (!call || !call.peerConnection) return;
     var pc = call.peerConnection;
 
-    // video
     var videoSender = pc.getSenders().find(function (s) { return s.track && s.track.kind === 'video'; });
     if (videoSender) {
       var wantVideo;
@@ -1650,7 +1794,6 @@
       }
     }
 
-    // audio
     var audioSender = pc.getSenders().find(function (s) { return s.track && s.track.kind === 'audio'; });
     if (audioSender) {
       var wantAudio;
@@ -1685,7 +1828,6 @@
       return;
     }
     els.viewModeSelect.hidden = false;
-    // Pick the option that best matches current state
     var val;
     if (viewMode === 'screen') val = 'screen';
     else if (useSysAudio) val = 'camera+audio';
@@ -1699,28 +1841,22 @@
     else if (mode === 'screen') { viewMode = 'screen'; useSysAudio = true; }
     else if (mode === 'camera+audio') { viewMode = 'camera'; useSysAudio = true; }
 
-    // Local preview reflects what is actually being sent
     if (viewMode === 'screen' && screenStream) {
       els.localVideo.srcObject = screenStream;
     } else if (localStream) {
       els.localVideo.srcObject = localStream;
     }
-
     syncOutboundToCall();
     syncViewModeUi();
   }
-
   els.viewModeSelect.addEventListener('change', function () {
     applyViewMode(els.viewModeSelect.value);
     var label = els.viewModeSelect.options[els.viewModeSelect.selectedIndex].textContent;
     sys('Outgoing view: ' + label + '.');
   });
-
   els.sysAudioBtn.addEventListener('click', function () {
     if (!sysAudioTrack) return;
     useSysAudio = !useSysAudio;
-    // If enabling computer audio while showing camera, that's "live video + audio"
-    // If disabling while showing screen, that's screen-only audio + mic
     if (useSysAudio && sysAudioTrack.enabled === false) sysAudioTrack.enabled = true;
     if (!useSysAudio && sysAudioTrack) sysAudioTrack.enabled = false;
     syncOutboundToCall();
@@ -1730,6 +1866,7 @@
 
   /* ---------------- lobby actions ---------------- */
   els.createBtn.addEventListener('click', function () {
+    if (userRole !== 'teacher') return;
     var custom = sanitizeRoomName(els.roomNameInput.value);
     if (custom && custom.length < 3) {
       lobbyError('Room name must be at least 3 letters/numbers.');
@@ -1741,6 +1878,7 @@
     els.joinBtn.disabled = true;
     els.createBtn.textContent = custom ? 'Checking availability…' : 'Creating…';
     role = 'host';
+    isTeacherGuest = false;
     roomCode = custom || randomCode();
     usingCustomName = !!custom;
     connectionAnnounced = false;
@@ -1754,6 +1892,7 @@
     els.createBtn.disabled = true;
     els.joinBtn.disabled = true;
     role = 'guest';
+    isTeacherGuest = false;
     roomCode = code;
     usingCustomName = false;
     connectionAnnounced = false;
@@ -1801,6 +1940,7 @@
           setStatus('Waiting for peer…');
           sys('Share code "' + roomCode + '" with the other person.');
           sys('You can already share your screen and queue messages and files \u2014 they will be delivered as soon as the peer joins.');
+          rememberHostRoom(roomCode);
         } else {
           setStatus('Connecting…');
           connectToHost();
@@ -1834,17 +1974,61 @@
     els.qualityBtn.disabled = false;
     els.shareBtn.disabled = false;
 
+    // Initial moderator state
     if (role === 'host') {
-      els.chatInput.disabled = false;
-      els.sendBtn.disabled = false;
-      els.attachBtn.disabled = false;
-      els.copyChatBtn.hidden = false;
-      els.saveFilesBtn.hidden = false;
-      els.flashBtn.hidden = false;
+      hasModerator = true;
+      peerHasModerator = false;
+    } else {
+      hasModerator = false;
+      peerHasModerator = true;
     }
+
+    // Chat send is always enabled in room
+    els.chatInput.disabled = false;
+    els.sendBtn.disabled = false;
+    els.attachBtn.disabled = false;
+
+    // Organizational tools: only for teachers (host OR teacher-guest)
+    var isTeacherSide = (role === 'host' && userRole === 'teacher') || isTeacherGuest;
+    els.copyChatBtn.hidden = !isTeacherSide;
+    els.saveFilesBtn.hidden = !isTeacherSide;
+
+    updateTeacherControls();
+
+    // Make moderator button visible on the host side once connected
+    if (role === 'host') {
+      els.makeModBtn.hidden = true; // shown when conn opens
+    } else {
+      els.makeModBtn.hidden = true;
+    }
+
     renderHostRooms();
     syncViewModeUi();
     scheduleChatCollapse();
+  }
+
+  // Applies moderator-dependent UI visibility
+  function updateTeacherControls() {
+    // Flash message and Mute peer are moderator-only tools.
+    var canModerate = hasModerator;
+    els.flashBtn.hidden = !canModerate;
+    els.muteGuestBtn.hidden = !(canModerate && conn && conn.open);
+    els.muteGuestBtn.disabled = !(canModerate && conn && conn.open);
+
+    // Badge
+    if (canModerate && role === 'guest') {
+      els.moderatorBadge.hidden = false;
+    } else if (canModerate && isTeacherGuest) {
+      els.moderatorBadge.hidden = false;
+    } else {
+      els.moderatorBadge.hidden = true;
+    }
+
+    // Button label
+    if (role === 'host') {
+      els.makeModBtn.textContent = peerHasModerator ? 'Recover control' : 'Make moderator';
+      els.makeModBtn.classList.toggle('warn', peerHasModerator);
+    }
   }
 
   /* ---------------- host: incoming ---------------- */
@@ -1910,12 +2094,17 @@
       sys('Chat connected.');
       announceConnection();
       if (role === 'host') {
-        els.muteGuestBtn.hidden = false;
-        els.muteGuestBtn.disabled = false;
+        els.makeModBtn.hidden = false;
+        updateTeacherControls();
         if (peerMutedByHost) conn.send({ type: 'host-mute', muted: true });
+      }
+      // A teacher-guest immediately requests moderator control.
+      if (isTeacherGuest) {
+        conn.send({ type: 'request-moderator' });
       }
       flushPending();
       sendMicState();
+      updateTeacherControls();
       scheduleChatCollapse();
     });
 
@@ -1929,6 +2118,10 @@
         handleHostMute(!!data.muted);
       } else if (data.type === 'mic-state') {
         els.peerLabel.textContent = 'Peer' + (data.on ? '' : ' \u{1F507}');
+      } else if (data.type === 'moderator') {
+        handleModeratorMessage(!!data.enabled);
+      } else if (data.type === 'request-moderator') {
+        handleModeratorRequest();
       } else {
         handleFileMessage(data);
       }
@@ -1944,13 +2137,53 @@
     }
   }
 
+  /* ---------------- moderator plumbing ---------------- */
+
+  // Receives a moderator-grant message from the other side.
+  // 'enabled' means WE have moderator now.
+  function handleModeratorMessage(enabled) {
+    hasModerator = !!enabled;
+    peerHasModerator = !hasModerator;
+    updateTeacherControls();
+    sys(hasModerator ? 'You now have moderator control.' : 'You no longer have moderator control.');
+  }
+
+  // The other peer asked for moderator. Host grants, teacher-guest is auto-granted.
+  function handleModeratorRequest() {
+    // Only the current moderator (host, typically) can grant.
+    if (!hasModerator) return;
+    // Grant: peer gets moderator, we lose it.
+    hasModerator = false;
+    peerHasModerator = true;
+    if (conn && conn.open) conn.send({ type: 'moderator', enabled: true });
+    updateTeacherControls();
+    sys('Moderator control handed over.');
+  }
+
+  els.makeModBtn.addEventListener('click', function () {
+    if (role !== 'host' || !conn || !conn.open) return;
+    if (!peerHasModerator) {
+      // Give moderator to peer
+      hasModerator = false;
+      peerHasModerator = true;
+      conn.send({ type: 'moderator', enabled: true });
+      sys('You gave moderator control to the peer. You can recover it at any time.');
+    } else {
+      // Take moderator back
+      hasModerator = true;
+      peerHasModerator = false;
+      conn.send({ type: 'moderator', enabled: false });
+      sys('You recovered moderator control.');
+    }
+    updateTeacherControls();
+  });
+
   var suppressPeerGone = false;
   function onPeerGone() {
     if (suppressPeerGone) return;
     if (!roomCode) return;
     stopStatsMonitor();
     incoming = {};
-    els.muteGuestBtn.disabled = true;
     els.peerLabel.textContent = 'Peer';
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     setStatus('Peer left');
@@ -1961,6 +2194,9 @@
     remoteStream = null;
     call = null;
     conn = null;
+    els.makeModBtn.hidden = true;
+    els.muteGuestBtn.hidden = true;
+    updateTeacherControls();
   }
 
   /* ---------------- ICE + reconnect ---------------- */
@@ -2079,6 +2315,12 @@
       peer = null;
 
       if (role === 'host') {
+        if (usingCustomName && userRole === 'teacher') {
+          // Offer takeover-as-teacher-guest
+          resetCreateUI();
+          showTakeoverModal(roomCode);
+          return;
+        }
         if (usingCustomName) {
           lobbyError('The room name "' + roomCode + '" is already in use. Please choose a different name.');
           els.roomNameInput.focus();
@@ -2086,6 +2328,7 @@
           resetCreateUI();
           return;
         }
+        // Random code collided — reroll silently
         roomCode = randomCode();
         bootPeer(PREFIX + roomCode);
         return;
@@ -2175,7 +2418,6 @@
   els.sendBtn.addEventListener('click', sendChat);
   els.chatInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') sendChat(); });
   els.chatInput.addEventListener('input', function () {
-    // typing counts as activity → postpone auto-collapse
     scheduleChatCollapse();
   });
 
@@ -2187,12 +2429,10 @@
     els.chatBadge.textContent = '0';
     scheduleChatCollapse();
   }
-
   function collapseChat() {
     els.sidebar.classList.add('collapsed');
     els.expandChatBtn.hidden = false;
   }
-
   function scheduleChatCollapse() {
     if (chatCollapseTimer) { clearTimeout(chatCollapseTimer); chatCollapseTimer = null; }
     if (chatPinned) return;
@@ -2200,14 +2440,12 @@
       chatCollapseTimer = null;
       if (chatPinned) return;
       if (pendingMessages.length > 0) {
-        // Queue not empty → keep visible; retry shortly.
         scheduleChatCollapse();
         return;
       }
       collapseChat();
     }, CHAT_IDLE_MS);
   }
-
   els.pinChatBtn.addEventListener('click', function () {
     chatPinned = !chatPinned;
     els.pinChatBtn.classList.toggle('active', chatPinned);
@@ -2219,7 +2457,6 @@
       scheduleChatCollapse();
     }
   });
-
   els.expandChatBtn.addEventListener('click', expandChat);
 
   /* ---------------- file attachments ---------------- */
@@ -2347,7 +2584,7 @@
     els.fileInput.value = '';
   });
 
-  /* ---------------- host: copy chat / save attachments ---------------- */
+  /* ---------------- copy chat / save attachments ---------------- */
   function copyToClipboard(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       return navigator.clipboard.writeText(text);
@@ -2402,9 +2639,8 @@
     });
   });
 
-  /* ---------------- flash message (host) ---------------- */
+  /* ---------------- flash message ---------------- */
   var flashHideTimer = null;
-
   function openFlashBar() {
     els.flashBar.hidden = false;
     els.flashInput.focus();
@@ -2430,7 +2666,6 @@
     if (!text) return;
     els.flashOverlay.textContent = text;
     els.flashOverlay.hidden = false;
-    // restart the animation
     els.flashOverlay.style.animation = 'none';
     void els.flashOverlay.offsetHeight;
     els.flashOverlay.style.animation = '';
@@ -2440,7 +2675,6 @@
       flashHideTimer = null;
     }, 5000);
   }
-
   els.flashBtn.addEventListener('click', function () {
     if (els.flashBar.hidden) openFlashBar();
     else closeFlashBar();
@@ -2563,17 +2797,14 @@
   var lockedByHost = false;
   var micBeforeLock = true;
 
-  function updateMuteGuestBtn() {
-    els.muteGuestBtn.textContent = peerMutedByHost ? 'Unmute peer' : 'Mute peer';
-  }
   function sendMicState() {
     if (conn && conn.open) conn.send({ type: 'mic-state', on: !!micTrack && micOn });
   }
   els.muteGuestBtn.addEventListener('click', function () {
-    if (role !== 'host' || !conn || !conn.open) return;
+    if (!hasModerator || !conn || !conn.open) return;
     peerMutedByHost = !peerMutedByHost;
     conn.send({ type: 'host-mute', muted: peerMutedByHost });
-    updateMuteGuestBtn();
+    els.muteGuestBtn.textContent = peerMutedByHost ? 'Unmute peer' : 'Mute peer';
     sys(peerMutedByHost ? 'You muted the peer.' : 'You unmuted the peer (they can use their mic again).');
   });
   function handleHostMute(muted) {
@@ -2604,7 +2835,6 @@
     camTrack.enabled = camOn;
     els.camBtn.textContent = 'Camera: ' + (camOn ? 'On' : 'Off');
   });
-
   els.micBtn.addEventListener('click', function () {
     if (!micTrack) return;
     micOn = !micOn;
@@ -2642,7 +2872,6 @@
 
     return dest.stream.getAudioTracks()[0];
   }
-
   function rebuildMixedAudio() {
     if (!screenStream || !sysAudioTrack) return;
     var newMixed = buildMixedAudio(micTrack, sysAudioTrack);
@@ -2657,17 +2886,11 @@
       sys('Screen sharing is not supported in this browser.');
       return;
     }
-
     sys('Opening the browser picker \u2014 choose Screen, Window, or Tab. On Chrome/Edge you can also tick "Share audio".');
 
     navigator.mediaDevices.getDisplayMedia({
       video: { frameRate: { ideal: 30, max: 60 } },
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-        sampleRate: 48000
-      }
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, sampleRate: 48000 }
     }).then(function (stream) {
       screenStream = stream;
       var screenVideo = stream.getVideoTracks()[0];
@@ -2682,13 +2905,10 @@
         mixedAudioTrack = null;
       }
 
-      // Enter "screen + audio" mode (or just "screen + mic" if no sys audio)
       viewMode = 'screen';
       useSysAudio = !!screenAudio;
 
-      // Local preview shows the shared screen
       els.localVideo.srcObject = stream;
-
       els.shareBtn.hidden = true;
       els.shareBtn.disabled = true;
       els.stopShareBtn.hidden = false;
@@ -2706,7 +2926,6 @@
       if (!call) {
         sys('The peer hasn\u2019t joined yet \u2014 your screen will be shown automatically when they connect.');
       }
-
       screenVideo.addEventListener('ended', stopShare);
     }).catch(function (err) {
       if (err && err.name === 'NotAllowedError') sys('Screen share cancelled.');
@@ -2714,7 +2933,6 @@
       else sys('Screen share failed: ' + (err && err.message ? err.message : 'unknown error'));
     });
   }
-
   els.shareBtn.addEventListener('click', startScreenShare);
   els.stopShareBtn.addEventListener('click', stopShare);
 
@@ -2722,27 +2940,22 @@
     var stream = screenStream;
     if (!stream) return;
     screenStream = null;
-
     stream.getTracks().forEach(function (t) { t.stop(); });
 
     if (audioCtx) { try { audioCtx.close(); } catch (e) {} audioCtx = null; }
     micGainNode = null; sysGainNode = null; mixedAudioTrack = null;
     sysAudioTrack = null;
-
     viewMode = 'camera';
     useSysAudio = false;
 
     if (localStream) els.localVideo.srcObject = localStream;
-
     els.shareBtn.hidden = false;
     els.shareBtn.disabled = false;
     els.stopShareBtn.hidden = true;
     els.camBtn.disabled = false;
     els.flipBtn.disabled = videoDevices.length < 2;
-
     syncViewModeUi();
     syncOutboundToCall();
-
     sys('Stopped sharing.');
   }
 
@@ -2781,10 +2994,11 @@
     els.chatInput.disabled = true;
     els.sendBtn.disabled = true;
     els.attachBtn.disabled = true;
+    els.makeModBtn.hidden = true;
     els.muteGuestBtn.hidden = true;
-    els.muteGuestBtn.disabled = true;
     peerMutedByHost = false;
-    updateMuteGuestBtn();
+    hasModerator = true;
+    peerHasModerator = false;
     els.peerLabel.textContent = 'Peer';
     els.netBadge.hidden = true;
     els.reconnectBtn.hidden = true;
@@ -2795,7 +3009,7 @@
     usingCustomName = true;
     els.roomCode.textContent = roomCode;
     sys('Switching to room "' + roomCode + '"…');
-
+    rememberHostRoom(roomCode);
     renderHostRooms();
     bootPeer(PREFIX + roomCode);
   });
@@ -2830,9 +3044,11 @@
     roomCode = null; role = null;
     camOn = true; micOn = true;
     usingCustomName = false;
+    isTeacherGuest = false;
+    hasModerator = false;
+    peerHasModerator = false;
     connectionAnnounced = false;
     suppressPeerGone = false;
-
     viewMode = 'camera';
     useSysAudio = false;
 
@@ -2852,6 +3068,8 @@
     els.copyChatBtn.hidden = true;
     els.saveFilesBtn.hidden = true;
     els.flashBtn.hidden = true;
+    els.makeModBtn.hidden = true;
+    els.moderatorBadge.hidden = true;
     if (!els.flashBar.hidden) closeFlashBar();
     els.flashOverlay.hidden = true;
     els.camBtn.disabled = true;
@@ -2861,7 +3079,6 @@
     els.muteGuestBtn.hidden = true;
     els.muteGuestBtn.disabled = true;
     peerMutedByHost = false; lockedByHost = false; micBeforeLock = true;
-    updateMuteGuestBtn();
     els.peerLabel.textContent = 'Peer';
     setLayout('split');
     els.camBtn.textContent = 'Camera: On';
@@ -2882,7 +3099,6 @@
     els.hostRoomSelect.innerHTML = '';
     if (els.editRoomsBtnRoom) els.editRoomsBtnRoom.hidden = true;
 
-    // reset chat auto-collapse
     chatPinned = false;
     els.pinChatBtn.classList.remove('active');
     els.pinChatBtn.textContent = 'Pin';
@@ -2890,12 +3106,14 @@
 
     resetCreateUI();
     els.joinInput.value = '';
+    els.roomNameInput.value = '';
     els.lobbyStatus.textContent = '';
     els.status.textContent = 'Idle';
 
     els.room.classList.remove('active');
     els.lobby.style.display = 'flex';
 
+    applyUserRoleUI();
     runDiagnostics();
     requestMedia().catch(function () {});
   }
@@ -2906,8 +3124,8 @@
   });
 
   /* ---------------- startup ---------------- */
+  applyUserRoleUI();
   renderHostRooms();
-  renderQuickRooms();
   if (checkCapabilities()) {
     checkInitialPermissions();
     runDiagnostics();
