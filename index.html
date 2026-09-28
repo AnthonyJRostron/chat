@@ -29,6 +29,12 @@
     padding: 9px 12px; border-radius: 6px; outline: none; font-size: 14px;
   }
   input[type=text]:focus { border-color: #388bfd; }
+  select {
+    background: #0d1117; border: 1px solid #30363d; color: #e6edf3;
+    padding: 6px 8px; border-radius: 6px; outline: none; font-size: 13px;
+    max-width: 100%;
+  }
+  select:focus { border-color: #388bfd; }
 
   /* ---------- Lobby ---------- */
   #lobby {
@@ -38,12 +44,18 @@
   .card {
     background: #161b22; border: 1px solid #30363d;
     border-radius: 12px; padding: 28px;
-    width: 100%; max-width: 420px;
+    width: 100%; max-width: 440px;
   }
   .card h1 { margin: 0 0 6px; font-size: 22px; }
   .card p { margin: 0 0 22px; color: #8b949e; font-size: 13px; line-height: 1.5; }
   .row { display: flex; gap: 8px; }
-  .row input { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: 2px; }
+  .row input { flex: 1; min-width: 0; }
+  #joinInput { text-transform: uppercase; letter-spacing: 2px; }
+  #roomNameInput { text-transform: uppercase; letter-spacing: 1px; font-family: ui-monospace, monospace; }
+  .fieldLabel {
+    display: block; font-size: 11px; color: #8b949e;
+    text-transform: uppercase; letter-spacing: .5px; margin: 0 0 6px;
+  }
   .or { text-align: center; color: #484f58; font-size: 12px; margin: 16px 0; }
   #lobbyStatus { margin-top: 16px; font-size: 12px; color: #f85149; min-height: 16px; }
 
@@ -158,7 +170,7 @@
   /* ---------- Lobby media pre-flight ---------- */
   .mediaPreviewWrap {
     display: flex; gap: 12px; align-items: center;
-    margin-bottom: 18px; padding: 10px; background: #0d1117;
+    margin-bottom: 14px; padding: 10px; background: #0d1117;
     border: 1px solid #30363d; border-radius: 10px;
   }
   .mediaPreviewWrap video {
@@ -175,6 +187,68 @@
     white-space: pre-wrap; word-break: break-word; max-height: 140px; overflow-y: auto;
   }
   .camLog.show { display: block; }
+
+  /* ---------- Device selectors ---------- */
+  .deviceSelectors {
+    margin-bottom: 16px; padding: 10px 12px; background: #0d1117;
+    border: 1px solid #30363d; border-radius: 10px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .deviceSelectors[hidden] { display: none; }
+  .deviceLabel {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: #8b949e;
+  }
+  .deviceLabel > span { min-width: 82px; flex: none; }
+  .deviceLabel select { flex: 1; min-width: 0; }
+  .deviceLabel select:disabled { opacity: .6; }
+
+  /* ---------- Settings warning banner ---------- */
+  .settingsWarn {
+    display: none; margin-top: 16px; padding: 10px 12px;
+    border-radius: 8px; background: #2b1113; border: 1px solid #f85149;
+    color: #ffb3ae; font-size: 12px; line-height: 1.5;
+  }
+  .settingsWarn.show { display: block; }
+  .settingsWarn strong { color: #f85149; }
+  .settingsWarn button {
+    margin-top: 8px; font-size: 12px; padding: 6px 12px;
+    background: #da3633; border-color: #f85149; color: #fff;
+  }
+  .settingsWarn button:hover { background: #f85149; }
+
+  /* ---------- Help modal ---------- */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.75);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px; z-index: 1000; overflow-y: auto;
+  }
+  .modal-overlay[hidden] { display: none; }
+  .modal {
+    background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+    padding: 24px; max-width: 520px; width: 100%;
+    max-height: 92vh; overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0,0,0,.6);
+  }
+  .modal h2 { margin: 0 0 10px; font-size: 18px; color: #e6edf3; }
+  .modal h3 { margin: 20px 0 6px; font-size: 14px; color: #58a6ff; }
+  .modal h3:first-of-type { margin-top: 12px; }
+  .modal p { font-size: 13px; line-height: 1.6; color: #c9d1d9; margin: 8px 0; }
+  .modal ol, .modal ul { padding-left: 20px; margin: 6px 0; font-size: 13px; line-height: 1.65; color: #c9d1d9; }
+  .modal li { margin-bottom: 5px; }
+  .modal code { background: #0d1117; padding: 1px 6px; border-radius: 4px; font-size: 12px; color: #79c0ff; }
+  .modal .stepArrow { color: #8b949e; }
+  .modal .tip {
+    margin-top: 14px; padding: 10px 12px; border-radius: 8px;
+    background: #2b2111; border: 1px solid #d29922; color: #f0c674;
+    font-size: 12px; line-height: 1.55;
+  }
+  .modal .closeRow { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
+  .helpSection[hidden] { display: none; }
+  .helpSection h3 { color: #58a6ff; }
+
+  /* small spinner text */
+  .checking { color: #d29922; }
 </style>
 </head>
 <body>
@@ -193,12 +267,38 @@
         <p id="mediaStatus" class="hint">Tap to allow camera &amp; microphone access.</p>
       </div>
     </div>
+
+    <div id="deviceSelectors" class="deviceSelectors" hidden>
+      <label class="deviceLabel">
+        <span>Camera</span>
+        <select id="cameraSelect"></select>
+      </label>
+      <label class="deviceLabel">
+        <span>Microphone</span>
+        <select id="micSelect"></select>
+      </label>
+    </div>
+
     <pre id="camLog" class="camLog"></pre>
+
+    <div id="settingsWarn" class="settingsWarn">
+      <strong>Camera / microphone access looks blocked.</strong>
+      Your browser settings (or your phone's OS settings) are preventing this page from using the microphone or camera.
+      <button id="showHelpBtn" type="button">Show me how to fix it</button>
+    </div>
+
+    <label class="fieldLabel" for="roomNameInput" style="margin-top:16px">Room name (optional)</label>
+    <div class="row">
+      <input id="roomNameInput" type="text" placeholder="eg. ANTHONY" maxlength="12" autocomplete="off" />
+    </div>
+    <p class="hint" style="margin:6px 0 12px;font-size:11px;color:#484f58;line-height:1.5">
+      Capital letters and numbers only, 3–12 characters. Leave blank for a random code.
+    </p>
 
     <button id="createBtn" class="primary" style="width:100%">Create a room</button>
     <div class="or">or join an existing room</div>
     <div class="row">
-      <input id="joinInput" type="text" placeholder="Room code" maxlength="6" autocomplete="off" />
+      <input id="joinInput" type="text" placeholder="Room name" maxlength="12" autocomplete="off" />
       <button id="joinBtn">Join</button>
     </div>
     <p id="lobbyStatus"></p>
@@ -285,6 +385,69 @@
   </footer>
 </div>
 
+<!-- ============ HELP MODAL ============ -->
+<div id="helpModal" class="modal-overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <h2 id="helpTitle">No podemos acceder al micrófono o la cámara</h2>
+    <p>
+      Tu navegador (<span id="helpBrowserName">este navegador</span>) no está recibiendo permiso para usar el
+      micrófono o la cámara. Esto casi siempre significa que el sistema operativo de tu teléfono
+      ha bloqueado el acceso para este navegador — no es un fallo de la página.
+    </p>
+    <p>
+      Sigue las instrucciones según tu dispositivo. Después, <strong>recarga la página</strong>.
+    </p>
+
+    <div id="helpIos" class="helpSection" hidden>
+      <h3>iPhone / iPad</h3>
+      <ol>
+        <li>Abre la app <strong>Ajustes</strong> en tu iPhone o iPad.</li>
+        <li>Desplázate hacia abajo y toca el nombre de tu navegador
+            (por ejemplo, <strong>Edge</strong>, <strong>Chrome</strong> o <strong>Safari</strong>).</li>
+        <li>Activa los interruptores de <strong>Micrófono</strong> y <strong>Cámara</strong>.</li>
+        <li>Si usas <strong>Safari</strong>: ve a
+            <span class="stepArrow">Ajustes → Safari → Cámara → Permitir</span> y
+            <span class="stepArrow">Ajustes → Safari → Micrófono → Permitir</span>.</li>
+        <li>Vuelve a este navegador y <strong>recarga la página</strong>.</li>
+      </ol>
+      <div class="tip">
+        <strong>En iOS 26 hay un fallo conocido:</strong> a veces el micrófono deja de funcionar hasta que se
+        reinicia el navegador por completo. Si después de permitir los permisos sigue sin funcionar,
+        <strong>cierra el navegador del todo</strong> (desliza la app hacia arriba en el selector de apps)
+        y vuelve a abrirlo, o reinicia el iPhone.
+      </div>
+    </div>
+
+    <div id="helpAndroid" class="helpSection" hidden>
+      <h3>Android</h3>
+      <ol>
+        <li>Abre <strong>Ajustes</strong> de Android.</li>
+        <li>Ve a <span class="stepArrow">Aplicaciones → [tu navegador] → Permisos</span>.</li>
+        <li>Permite <strong>Micrófono</strong> y <strong>Cámara</strong>.</li>
+        <li>También puedes tocar el <strong>candado</strong> junto a la barra de direcciones en el navegador
+            → <strong>Permisos</strong> → permitir Micrófono y Cámara.</li>
+        <li><strong>Recarga la página.</strong></li>
+      </ol>
+    </div>
+
+    <div id="helpGeneric" class="helpSection">
+      <h3>Otros dispositivos</h3>
+      <ol>
+        <li>En la barra de direcciones del navegador, toca el icono del <strong>candado</strong> (o del
+            <strong>sitio</strong>).</li>
+        <li>Permite el acceso a <strong>Cámara</strong> y <strong>Micrófono</strong>.</li>
+        <li>Comprueba también los ajustes de privacidad del sistema operativo para este navegador.</li>
+        <li><strong>Recarga la página.</strong></li>
+      </ol>
+    </div>
+
+    <div class="closeRow">
+      <button id="helpRetryBtn" type="button" class="primary">Ya lo he hecho — reintentar</button>
+      <button id="helpCloseBtn" type="button">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 (function () {
@@ -295,6 +458,7 @@
   var els = {
     lobby: $('lobby'), room: $('room'),
     createBtn: $('createBtn'), joinBtn: $('joinBtn'), joinInput: $('joinInput'),
+    roomNameInput: $('roomNameInput'),
     lobbyStatus: $('lobbyStatus'),
     roomCode: $('roomCode'), copyBtn: $('copyBtn'), status: $('status'),
     localVideo: $('localVideo'), remoteVideo: $('remoteVideo'),
@@ -311,20 +475,22 @@
     saveAdvBtn: $('saveAdvBtn'), clearAdvBtn: $('clearAdvBtn'),
     lobbyPreview: $('lobbyPreview'), enableMediaBtn: $('enableMediaBtn'), mediaStatus: $('mediaStatus'),
     camLog: $('camLog'),
+    deviceSelectors: $('deviceSelectors'),
+    cameraSelect: $('cameraSelect'),
+    micSelect: $('micSelect'),
     attachBtn: $('attachBtn'), fileInput: $('fileInput'), qualityBtn: $('qualityBtn'),
-    layoutBtn: $('layoutBtn'), thumbSlot: $('thumbSlot'), muteGuestBtn: $('muteGuestBtn'), peerLabel: $('peerLabel')
+    layoutBtn: $('layoutBtn'), thumbSlot: $('thumbSlot'), muteGuestBtn: $('muteGuestBtn'), peerLabel: $('peerLabel'),
+    settingsWarn: $('settingsWarn'), showHelpBtn: $('showHelpBtn'),
+    helpModal: $('helpModal'), helpCloseBtn: $('helpCloseBtn'), helpRetryBtn: $('helpRetryBtn'),
+    helpBrowserName: $('helpBrowserName'),
+    helpIos: $('helpIos'), helpAndroid: $('helpAndroid'), helpGeneric: $('helpGeneric')
   };
 
   var PREFIX = 'wrtc2-';   // namespaces our room IDs on the public PeerJS cloud
   var LS_KEY = 'wrtc2-advanced-settings';
+  var LS_DEVICE_KEY = 'wrtc2-device-prefs';
 
   /* ---------------- built-in STUN/TURN (public, shared, rate-limited) ---------------- */
-  // STUN only tells you your public IP; it cannot get media through a
-  // symmetric-NAT/strict-firewall network. TURN relays the actual media,
-  // which is what makes calls work on locked-down corporate/school/hotel
-  // networks. We include TURN over UDP, TCP and TLS(443) so there's a
-  // path through firewalls that only allow outbound 443, or that do deep
-  // packet inspection (turns: on 443 looks like ordinary HTTPS).
   var BUILTIN_STUN = [
     'stun:stun.l.google.com:19302',
     'stun:stun1.l.google.com:19302',
@@ -377,6 +543,38 @@
     return opts;
   }
 
+  /* ---------------- device preferences (saved to localStorage) ---------------- */
+
+  function loadDevicePrefs() {
+    try { return JSON.parse(localStorage.getItem(LS_DEVICE_KEY)) || {}; }
+    catch (e) { return {}; }
+  }
+  function saveDevicePrefs(p) {
+    try { localStorage.setItem(LS_DEVICE_KEY, JSON.stringify(p)); } catch (e) {}
+  }
+
+  var devicePrefs = loadDevicePrefs();
+  var selectedCamId = devicePrefs.cameraId || '';
+  var selectedMicId = devicePrefs.microphoneId || '';
+
+  function persistDevicePrefs() {
+    saveDevicePrefs({ cameraId: selectedCamId || '', microphoneId: selectedMicId || '' });
+  }
+
+  // Called when we know which physical device a live track is actually
+  // using — this keeps the saved preference in sync even if the user never
+  // opened the dropdown (e.g. first visit, only one device available).
+  function rememberDevice(kind, deviceId) {
+    if (!deviceId) return;
+    if (kind === 'camera' && deviceId !== selectedCamId) {
+      selectedCamId = deviceId;
+      persistDevicePrefs();
+    } else if (kind === 'mic' && deviceId !== selectedMicId) {
+      selectedMicId = deviceId;
+      persistDevicePrefs();
+    }
+  }
+
   /* ---------------- session state ---------------- */
   var peer = null;
   var role = null;             // 'host' | 'guest'
@@ -391,6 +589,9 @@
   var micTrack = null;
   var camOn = true;
   var micOn = true;
+  var peerOpenTimer = null;
+  var usingCustomName = false;
+  var videoDevices = [];
 
   /* ---------------- helpers ---------------- */
 
@@ -399,6 +600,12 @@
     var s = '';
     for (var i = 0; i < 6; i++) s += alphabet[Math.floor(Math.random() * alphabet.length)];
     return s;
+  }
+
+  // Force A–Z + 0–9 only, uppercased. Used for both room names (host) and
+  // join codes (guest) so a peer typing "anthony" is matched to "ANTHONY".
+  function sanitizeRoomName(s) {
+    return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
   }
 
   function setStatus(t) { els.status.textContent = t; }
@@ -417,6 +624,92 @@
     els.chatLog.scrollTop = els.chatLog.scrollHeight;
   }
   function sys(t) { addMsg('sys', null, t); }
+
+  /* ---------------- OS / browser detection ---------------- */
+
+  function detectOS() {
+    var ua = navigator.userAgent || '';
+    if (/iPad|iPhone|iPod/.test(ua)) return 'ios';
+    if (/Android/i.test(ua)) return 'android';
+    if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) return 'ios';
+    return 'other';
+  }
+
+  function detectBrowserName() {
+    var ua = navigator.userAgent || '';
+    if (/EdgiOS|EdgA|Edg\//i.test(ua)) return 'Edge';
+    if (/CriOS/i.test(ua)) return 'Chrome';
+    if (/FxiOS/i.test(ua)) return 'Firefox';
+    if (/SamsungBrowser/i.test(ua)) return 'Samsung Internet';
+    if (/OPiOS|OPR\//i.test(ua)) return 'Opera';
+    if (/Safari/i.test(ua) && !/Chrome|Chromium|CriOS/i.test(ua)) return 'Safari';
+    if (/Chrome/i.test(ua)) return 'Chrome';
+    return 'este navegador';
+  }
+
+  /* ---------------- help modal ---------------- */
+
+  var helpAutoShown = false;
+
+  function openHelpModal() {
+    var os = detectOS();
+    els.helpBrowserName.textContent = detectBrowserName();
+    els.helpIos.hidden = os !== 'ios';
+    els.helpAndroid.hidden = os !== 'android';
+    els.helpGeneric.hidden = false;
+    els.helpModal.hidden = false;
+  }
+
+  function closeHelpModal() {
+    els.helpModal.hidden = true;
+  }
+
+  els.showHelpBtn.addEventListener('click', openHelpModal);
+  els.helpCloseBtn.addEventListener('click', closeHelpModal);
+  els.helpRetryBtn.addEventListener('click', function () {
+    closeHelpModal();
+    requestMedia().catch(function () {});
+  });
+  els.helpModal.addEventListener('click', function (e) {
+    if (e.target === els.helpModal) closeHelpModal();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !els.helpModal.hidden) closeHelpModal();
+  });
+
+  function showSettingsWarning() {
+    els.settingsWarn.classList.add('show');
+  }
+  function hideSettingsWarning() {
+    els.settingsWarn.classList.remove('show');
+  }
+
+  function isPermissionError(err) {
+    if (!err) return false;
+    var n = err.name || '';
+    return n === 'NotAllowedError' || n === 'PermissionDeniedError' ||
+           /not allowed by the user agent|permission denied|denied permission/i.test(err.message || '');
+  }
+
+  function maybeShowSettingsHelp(err) {
+    if (!isPermissionError(err)) return;
+    showSettingsWarning();
+    if (!helpAutoShown) {
+      helpAutoShown = true;
+      openHelpModal();
+    }
+  }
+
+  function checkInitialPermissions() {
+    if (!navigator.permissions || !navigator.permissions.query) return;
+    ['camera', 'microphone'].forEach(function (name) {
+      try {
+        navigator.permissions.query({ name: name }).then(function (p) {
+          if (p.state === 'denied') showSettingsWarning();
+        }).catch(function () {});
+      } catch (e) {}
+    });
+  }
 
   /* ---------------- capability checks ---------------- */
 
@@ -445,13 +738,6 @@
   }
 
   /* ---------------- network diagnostics ---------------- */
-  // Opens a throwaway RTCPeerConnection using the same ICE servers the real
-  // call will use, and watches what *kind* of ICE candidates it can gather.
-  // No STUN/TURN reachable at all = the network almost certainly blocks
-  // WebRTC outright. STUN but no TURN = fine for most networks, but will
-  // fail if either side is behind a strict/symmetric-NAT firewall. TURN
-  // reachable = a relay path exists, so calls should work even through
-  // strict corporate/school firewalls (at some cost to latency/quality).
 
   function diagnoseNetwork(iceServers, timeoutMs) {
     return new Promise(function (resolve) {
@@ -594,26 +880,32 @@
     return (err && err.name ? err.name : 'Error') + (err && err.message ? ': ' + err.message : '');
   }
 
-  // Progressively less demanding constraint sets, tried in order until one
-  // succeeds. Ported from the barcode-scanner app's acquireCamera().
-  // The barcode scanner asks for video ONLY and works; asking for audio +
-  // video together fails entirely if the microphone is blocked/unavailable
-  // even though the camera is fine. So after the audio+video attempts we
-  // fall back to video-only, and the call continues without a mic.
   function acquireCamera() {
-    var AUDIO = { echoCancellation: true, noiseSuppression: true };
-    var attempts = [
-      { name: 'A+V 1280x720 front', a: AUDIO, v: { facingMode: { ideal: 'user' },
+    var AUDIO_DEFAULT = { echoCancellation: true, noiseSuppression: true };
+    var audioPreferred = selectedMicId
+      ? { deviceId: { exact: selectedMicId }, echoCancellation: true, noiseSuppression: true }
+      : AUDIO_DEFAULT;
+    var videoPreferred = selectedCamId
+      ? { deviceId: { exact: selectedCamId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+      : { facingMode: { ideal: 'user' }, width: { ideal: 1280 }, height: { ideal: 720 } };
+
+    var attempts = [];
+    if (selectedMicId || selectedCamId) {
+      attempts.push({ name: 'Preferred devices', a: audioPreferred, v: videoPreferred });
+    }
+    attempts = attempts.concat([
+      { name: 'A+V 1280x720 front', a: AUDIO_DEFAULT, v: { facingMode: { ideal: 'user' },
           width: { ideal: 1280 }, height: { ideal: 720 } } },
-      { name: 'A+V 1280x720 back', a: AUDIO, v: { facingMode: { ideal: 'environment' },
+      { name: 'A+V 1280x720 back', a: AUDIO_DEFAULT, v: { facingMode: { ideal: 'environment' },
           width: { ideal: 1280 }, height: { ideal: 720 } } },
-      { name: 'A+V 640x480 any', a: AUDIO, v: { width: { ideal: 640 }, height: { ideal: 480 } } },
+      { name: 'A+V 640x480 any', a: AUDIO_DEFAULT, v: { width: { ideal: 640 }, height: { ideal: 480 } } },
       { name: 'A+V default', a: true, v: true },
+      { name: 'video-only preferred', a: false, v: selectedCamId ? { deviceId: { exact: selectedCamId } } : true },
       { name: 'video-only back', a: false, v: { facingMode: { ideal: 'environment' },
           width: { ideal: 1280 }, height: { ideal: 720 } } },
       { name: 'video-only front', a: false, v: { facingMode: { ideal: 'user' } } },
       { name: 'video-only default', a: false, v: true }
-    ];
+    ]);
 
     function logEnv() {
       var inFrame = false;
@@ -627,6 +919,9 @@
             camLog('Permission ' + n + ': ' + p.state);
           }).catch(function () { camLog('Permission ' + n + ': not queryable'); });
         });
+      }
+      if (selectedCamId || selectedMicId) {
+        camLog('Saved prefs: cam=' + (selectedCamId || '(none)') + ' mic=' + (selectedMicId || '(none)'));
       }
     }
     logEnv();
@@ -664,13 +959,6 @@
     return tryNext();
   }
 
-  // On iOS Safari in particular, a getUserMedia() call made without a real
-  // user tap can occasionally just hang forever — no prompt, no resolve, no
-  // reject — rather than being cleanly rejected. If we let that happen we'd
-  // not only miss the prompt, we'd also wedge every future attempt (since
-  // getMedia() below reuses any in-flight call). This wraps the request in
-  // a hard timeout so a stuck call always eventually frees things up again
-  // for a retry, instead of getting stuck silently forever.
   function withTimeout(promise, ms) {
     return new Promise(function (resolve, reject) {
       var settled = false;
@@ -703,35 +991,152 @@
       localStream = stream;
       camTrack = stream.getVideoTracks()[0];
       micTrack = stream.getAudioTracks()[0];
+
+      // Remember the physical devices that actually got used, so the next
+      // session defaults to them (persisted via localStorage).
+      var camSettings = (camTrack && camTrack.getSettings) ? camTrack.getSettings() : {};
+      if (camSettings.deviceId) rememberDevice('camera', camSettings.deviceId);
+      var micSettings = (micTrack && micTrack.getSettings) ? micTrack.getSettings() : {};
+      if (micSettings.deviceId) rememberDevice('mic', micSettings.deviceId);
+
       els.localVideo.srcObject = stream;
       if (els.lobbyPreview) els.lobbyPreview.srcObject = stream;
-      refreshVideoDeviceList();
+      populateDeviceSelectors();
       return stream;
     }, function (err) {
       mediaPromise = null;
       if (err && err.message === 'TIMEOUT') {
-        throw new Error('The camera/microphone request timed out without showing a prompt. Make sure this page is open directly in Safari/Chrome (not inside another app\'s built-in browser), then tap the button below to try again.');
+        throw new Error('The camera/microphone request timed out without showing a prompt. Make sure this page is open directly in your browser (not inside another app\'s built-in browser), then tap the button below to try again.');
       }
       throw new Error(mediaErrorMessage(err));
     });
     return mediaPromise;
   }
 
+  /* ---------------- device selectors ---------------- */
+
+  function populateSelect(selectEl, devices, preferredId, currentTrack) {
+    if (!selectEl) return;
+    // Which device is really in use right now?
+    var liveId = '';
+    if (currentTrack && currentTrack.getSettings) {
+      liveId = currentTrack.getSettings().deviceId || '';
+    }
+    var wanted = liveId || preferredId || '';
+
+    selectEl.innerHTML = '';
+    devices.forEach(function (d, i) {
+      var opt = document.createElement('option');
+      opt.value = d.deviceId;
+      opt.textContent = d.label || ((d.kind === 'videoinput' ? 'Camera ' : 'Microphone ') + (i + 1));
+      selectEl.appendChild(opt);
+    });
+
+    if (wanted) {
+      for (var j = 0; j < selectEl.options.length; j++) {
+        if (selectEl.options[j].value === wanted) { selectEl.selectedIndex = j; break; }
+      }
+    }
+    if (selectEl.selectedIndex < 0 && selectEl.options.length) selectEl.selectedIndex = 0;
+  }
+
+  function populateDeviceSelectors() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    navigator.mediaDevices.enumerateDevices().then(function (devices) {
+      var cams = devices.filter(function (d) { return d.kind === 'videoinput'; });
+      var mics = devices.filter(function (d) { return d.kind === 'audioinput'; });
+      videoDevices = cams;                      // keep the flip button in sync
+      els.flipBtn.hidden = cams.length < 2;
+      populateSelect(els.cameraSelect, cams, selectedCamId, camTrack);
+      populateSelect(els.micSelect, mics, selectedMicId, micTrack);
+      els.deviceSelectors.hidden = !(cams.length > 1 || mics.length > 1);
+    }).catch(function () {});
+  }
+
+  function switchCamera(deviceId) {
+    if (!localStream || !deviceId) return;
+    els.cameraSelect.disabled = true;
+    navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    }).then(function (s) {
+      replaceVideoTrack(s.getVideoTracks()[0]);
+      els.cameraSelect.disabled = false;
+      populateDeviceSelectors();
+    }).catch(function (err) {
+      camLog('FAIL switch camera -> ' + errText(err));
+      sys('Could not switch camera: ' + mediaErrorMessage(err));
+      els.cameraSelect.disabled = false;
+      // Snap the dropdown back to whatever's still live
+      populateDeviceSelectors();
+    });
+  }
+
+  function switchMicrophone(deviceId) {
+    if (!localStream || !deviceId) return;
+    els.micSelect.disabled = true;
+    navigator.mediaDevices.getUserMedia({
+      audio: { deviceId: { exact: deviceId }, echoCancellation: true, noiseSuppression: true },
+      video: false
+    }).then(function (s) {
+      var newTrack = s.getAudioTracks()[0];
+      if (!newTrack) { els.micSelect.disabled = false; return; }
+      if (micTrack) {
+        try { localStream.removeTrack(micTrack); } catch (e) {}
+        try { micTrack.stop(); } catch (e) {}
+      }
+      localStream.addTrack(newTrack);
+      newTrack.enabled = micOn;
+      micTrack = newTrack;
+      if (call && call.peerConnection) {
+        var sender = call.peerConnection.getSenders().filter(function (s2) {
+          return s2.track && s2.track.kind === 'audio';
+        })[0];
+        if (sender) { try { sender.replaceTrack(newTrack); } catch (e) {} }
+      }
+      showMicState();
+      els.micSelect.disabled = false;
+      populateDeviceSelectors();
+      sendMicState();
+    }).catch(function (err) {
+      camLog('FAIL switch mic -> ' + errText(err));
+      sys('Could not switch microphone: ' + mediaErrorMessage(err));
+      els.micSelect.disabled = false;
+      populateDeviceSelectors();
+    });
+  }
+
+  els.cameraSelect.addEventListener('change', function () {
+    var id = els.cameraSelect.value;
+    if (!id) return;
+    selectedCamId = id;
+    persistDevicePrefs();
+    switchCamera(id);
+  });
+
+  els.micSelect.addEventListener('change', function () {
+    var id = els.micSelect.value;
+    if (!id) return;
+    selectedMicId = id;
+    persistDevicePrefs();
+    switchMicrophone(id);
+  });
+
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+    navigator.mediaDevices.addEventListener('devicechange', function () {
+      if (localStream) populateDeviceSelectors();
+    });
+  }
+
   /* ---------------- request camera/mic (lobby pre-flight) ---------------- */
-  // Deliberately NOT requested automatically on page load: on iOS Safari,
-  // a getUserMedia() call with no real user gesture behind it can fail to
-  // show the permission prompt at all (this is what the barcode-scanner
-  // app avoids by only ever asking inside its "Start" button's click
-  // handler). So here too, the very first request always happens inside a
-  // real tap on this button — guaranteed to work the same way on iOS,
-  // Android and desktop.
 
   function showMicState() {
     if (micTrack) {
       els.mediaStatus.textContent = '\u2713 Camera & microphone ready.';
       els.enableMediaBtn.hidden = true;
+      hideSettingsWarning();
     } else {
-      els.mediaStatus.textContent = 'Camera ready, but the microphone is blocked or unavailable \u2014 others won\'t hear you. On iPhone: tap the aA icon in Safari \u25B8 Website Settings \u25B8 Microphone \u25B8 Allow, then tap Retry microphone.';
+      els.mediaStatus.textContent = 'Camera ready, but the microphone is blocked or unavailable \u2014 others won\'t hear you. Tap "Retry microphone" for help.';
       els.enableMediaBtn.textContent = 'Retry microphone';
       els.enableMediaBtn.disabled = false;
       els.enableMediaBtn.hidden = false;
@@ -742,20 +1147,26 @@
     els.enableMediaBtn.textContent = 'Enable camera & microphone';
     els.enableMediaBtn.disabled = true;
     els.mediaStatus.textContent = 'Requesting camera & microphone access\u2026';
-    return getMedia().then(showMicState, function (err) {
+    return getMedia().then(function () {
+      showMicState();
+      if (localStream && !micTrack) showSettingsWarning();
+    }, function (err) {
       els.enableMediaBtn.disabled = false;
       els.enableMediaBtn.hidden = false;
       els.mediaStatus.textContent = err.message;
+      maybeShowSettingsHelp(err);
       throw err;
     });
   }
 
-  // Ask for the microphone alone (must run inside a tap) and attach it to
-  // the camera stream we already have.
   function retryMic() {
     els.enableMediaBtn.disabled = true;
     els.mediaStatus.textContent = 'Requesting microphone\u2026';
-    var tries = [{ echoCancellation: true, noiseSuppression: true }, true];
+    var tries = [
+      selectedMicId ? { deviceId: { exact: selectedMicId }, echoCancellation: true, noiseSuppression: true } : null,
+      { echoCancellation: true, noiseSuppression: true },
+      true
+    ].filter(Boolean);
     var i = 0;
     function next() {
       var a = tries[i++];
@@ -765,13 +1176,17 @@
         localStream.addTrack(t);
         micTrack = t;
         micTrack.enabled = micOn;
+        var st = (t.getSettings && t.getSettings()) || {};
+        if (st.deviceId) rememberDevice('mic', st.deviceId);
         showMicState();
+        populateDeviceSelectors();
       }, function (err) {
         camLog('FAIL microphone retry -> ' + errText(err));
         if (i < tries.length) return next();
         showMicState();
         els.mediaStatus.textContent = mediaErrorMessage(err).replace('camera/microphone', 'microphone') +
           ' (' + (err && err.name ? err.name : 'error') + ')';
+        maybeShowSettingsHelp(err);
       });
     }
     return next();
@@ -782,23 +1197,7 @@
     else requestMedia().catch(function () {});
   });
 
-  /* ---------------- switch camera (front/back or multiple webcams) ---------------- */
-  // Device labels/enumeration are only populated once permission has been
-  // granted, so this is called after getMedia() succeeds. Cycling by
-  // deviceId (rather than facingMode) works on desktops with several
-  // webcams too, not just phones with a front/back pair — and it's also
-  // the natural way to route around a camera that's blocked by policy
-  // (see acquireCamera() above) while another one on the same device works.
-
-  var videoDevices = [];
-
-  function refreshVideoDeviceList() {
-    if (!navigator.mediaDevices.enumerateDevices) return;
-    navigator.mediaDevices.enumerateDevices().then(function (devices) {
-      videoDevices = devices.filter(function (d) { return d.kind === 'videoinput'; });
-      els.flipBtn.hidden = videoDevices.length < 2;
-    }).catch(function () {});
-  }
+  /* ---------------- switch camera (footer flip button) ---------------- */
 
   function replaceVideoTrack(newTrack) {
     if (camTrack) {
@@ -820,21 +1219,14 @@
 
   function flipCamera() {
     if (videoDevices.length < 2 || !camTrack) return;
-    els.flipBtn.disabled = true;
     var settings = camTrack.getSettings ? camTrack.getSettings() : {};
     var idx = videoDevices.findIndex(function (d) { return d.deviceId === settings.deviceId; });
     var next = videoDevices[(idx + 1) % videoDevices.length];
-    navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: { deviceId: { exact: next.deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-    }).then(function (s) {
-      replaceVideoTrack(s.getVideoTracks()[0]);
-      refreshVideoDeviceList();
-      els.flipBtn.disabled = false;
-    }).catch(function (err) {
-      sys('Could not switch camera: ' + mediaErrorMessage(err));
-      els.flipBtn.disabled = false;
-    });
+    if (!next) return;
+    selectedCamId = next.deviceId;
+    persistDevicePrefs();
+    if (els.cameraSelect) els.cameraSelect.value = next.deviceId;
+    switchCamera(next.deviceId);
   }
 
   els.flipBtn.addEventListener('click', flipCamera);
@@ -842,22 +1234,33 @@
   /* ---------------- lobby actions ---------------- */
 
   els.createBtn.addEventListener('click', function () {
+    var custom = sanitizeRoomName(els.roomNameInput.value);
+    if (custom && custom.length < 3) {
+      lobbyError('Room name must be at least 3 letters/numbers.');
+      els.roomNameInput.focus();
+      return;
+    }
     lobbyError('');
     els.createBtn.disabled = true;
     els.joinBtn.disabled = true;
+    els.createBtn.textContent = custom ? 'Checking availability…' : 'Creating…';
     role = 'host';
-    roomCode = randomCode();
+    roomCode = custom || randomCode();
+    usingCustomName = !!custom;
     bootPeer(PREFIX + roomCode);
   });
 
   els.joinBtn.addEventListener('click', function () {
-    var code = els.joinInput.value.trim().toUpperCase();
-    if (code.length < 4) { lobbyError('Enter a valid room code.'); return; }
+    // Always upper-case + strip anything that isn't A–Z or 0–9, so a peer
+    // typing "anthony" is matched to the host's "ANTHONY".
+    var code = sanitizeRoomName(els.joinInput.value);
+    if (code.length < 3) { lobbyError('Enter a valid room name (3+ letters/numbers).'); return; }
     lobbyError('');
     els.createBtn.disabled = true;
     els.joinBtn.disabled = true;
     role = 'guest';
     roomCode = code;
+    usingCustomName = false;
     bootPeer(null);
   });
 
@@ -865,23 +1268,39 @@
     if (e.key === 'Enter') els.joinBtn.click();
   });
 
+  // Live upper-case + sanitise as the user types, on both inputs.
+  els.roomNameInput.addEventListener('input', function () {
+    var cleaned = sanitizeRoomName(els.roomNameInput.value);
+    if (cleaned !== els.roomNameInput.value) els.roomNameInput.value = cleaned;
+  });
+  els.joinInput.addEventListener('input', function () {
+    var cleaned = sanitizeRoomName(els.joinInput.value);
+    if (cleaned !== els.joinInput.value) els.joinInput.value = cleaned;
+  });
+
+  function resetCreateUI() {
+    els.createBtn.disabled = false;
+    els.joinBtn.disabled = false;
+    els.createBtn.textContent = 'Create a room';
+  }
+
   function bootPeer(id) {
     getMedia().then(function () {
       var opts = buildPeerOpts();
       peer = id ? new Peer(id, opts) : new Peer(opts);
 
-      var openTimer = setTimeout(function () {
-        if (peer && !peer.open) {
+      peerOpenTimer = setTimeout(function () {
+        peerOpenTimer = null;
+        if (peer && !peer.open && !peer.destroyed) {
           lobbyError('Could not reach the signaling server after 12 seconds. A firewall, proxy or VPN on this network may be blocking the required WebSocket connection. Try a different network, or set a self-hosted signaling server under "Advanced network settings".');
           try { peer.destroy(); } catch (e) {}
           peer = null;
-          els.createBtn.disabled = false;
-          els.joinBtn.disabled = false;
+          resetCreateUI();
         }
       }, 12000);
 
       peer.on('open', function () {
-        clearTimeout(openTimer);
+        if (peerOpenTimer) { clearTimeout(peerOpenTimer); peerOpenTimer = null; }
         showRoom();
         if (role === 'host') {
           setStatus('Waiting for peer…');
@@ -896,6 +1315,7 @@
       peer.on('connection', handleIncomingConn);
       peer.on('error', handlePeerError);
       peer.on('disconnected', function () {
+        if (!peer || peer.destroyed) return;
         setStatus('Signaling disconnected — reconnecting…');
         sys('Lost contact with the signaling server. Reconnecting…');
         try { peer.reconnect(); } catch (e) {}
@@ -903,8 +1323,7 @@
     }).catch(function (err) {
       console.error(err);
       lobbyError(err.message);
-      els.createBtn.disabled = false;
-      els.joinBtn.disabled = false;
+      resetCreateUI();
       peer = null;
     });
   }
@@ -1151,30 +1570,41 @@
     var type = err && err.type ? err.type : 'unknown';
 
     if (type === 'unavailable-id') {
+      if (peerOpenTimer) { clearTimeout(peerOpenTimer); peerOpenTimer = null; }
+      try { peer.destroy(); } catch (e) {}
+      peer = null;
+
       if (role === 'host') {
-        // Reroll the room code and try again
-        try { peer.destroy(); } catch (e) {}
-        peer = null;
+        if (usingCustomName) {
+          lobbyError('The room name "' + roomCode + '" is already in use. Please choose a different name.');
+          els.roomNameInput.focus();
+          els.roomNameInput.select();
+          resetCreateUI();
+          return;
+        }
         roomCode = randomCode();
         bootPeer(PREFIX + roomCode);
         return;
       }
-      lobbyError('That room code is taken. Try again.');
+      lobbyError('That room name is taken. Try again.');
+      resetCreateUI();
     } else if (type === 'peer-unavailable') {
       setStatus('Room not found');
       sys('No host found for code "' + roomCode + '".');
-      lobbyError('Room not found. Check the code and try again.');
+      lobbyError('Room "' + roomCode + '" not found. Check the name and try again.');
       leaveRoom();
     } else if (type === 'network' || type === 'server-error' || type === 'socket-error') {
       setStatus('Network error');
       sys('Signaling network error — this can happen when a firewall or proxy blocks WebSocket traffic. Retrying…');
     } else if (type === 'browser-incompatible') {
       lobbyError('Your browser does not support WebRTC.');
+      resetCreateUI();
     } else if (type === 'webrtc') {
       setStatus('WebRTC error');
       sys('A WebRTC/ICE error occurred — this often means the media path (direct or via TURN) could not be established, which usually points to a restrictive firewall on one side.');
     } else {
       lobbyError('Connection error: ' + type);
+      resetCreateUI();
     }
   }
 
@@ -1194,9 +1624,6 @@
   });
 
   /* ---------------- file attachments ---------------- */
-  // Files travel over the same reliable, ordered data channel as chat,
-  // split into 16 KB chunks with back-pressure so big files don't flood
-  // the connection. (Through a TURN relay this uses relay bandwidth.)
 
   var MAX_FILE = 50 * 1024 * 1024;
   var CHUNK = 16 * 1024;
@@ -1301,11 +1728,6 @@
   });
 
   /* ---------------- video quality (manual + auto) ---------------- */
-  // Each side controls only what it SENDS. Lowering quality caps bitrate,
-  // resolution and frame rate of our outgoing video so a weak connection
-  // keeps the call (and audio) smooth. "Auto" watches packet loss, round-trip
-  // time and available bandwidth every 3 s and steps down quickly when the
-  // link is struggling, and back up slowly once it has been stable.
 
   var LEVELS = ['high', 'medium', 'low', 'minimal'];
   var QUALITY = {
@@ -1343,7 +1765,6 @@
     params.encodings[0].maxFramerate = q.fps;
     params.encodings[0].scaleResolutionDownBy = q.scale;
     sender.setParameters(params).catch(function () {
-      // some browsers reject scale/fps; retry with the bitrate cap alone
       var p2 = sender.getParameters();
       if (!p2.encodings || !p2.encodings.length) p2.encodings = [{}];
       p2.encodings[0].maxBitrate = q.maxBitrate;
@@ -1394,9 +1815,6 @@
   });
 
   /* ---------------- layout: split / maximize ---------------- */
-  // Split shows both views side by side. Maximize shows one view full size
-  // and moves the other into a thumbnail in the top bar (click the thumbnail
-  // to swap). The same <video> elements are moved, so streams keep playing.
 
   function setLayout(mode) {
     var vids = $('videos'), tl = $('tileLocal'), tr = $('tileRemote');
@@ -1428,12 +1846,9 @@
   els.layoutBtn.addEventListener('click', function () { setLayout('split'); });
 
   /* ---------------- host mutes / unmutes the peer ---------------- */
-  // Host mute locks the guest's mic off (their button is disabled). Host
-  // unmute only lifts the lock and restores the guest's previous choice — it
-  // never switches on a microphone the guest had turned off themselves.
 
-  var peerMutedByHost = false;   // host side
-  var lockedByHost = false;      // guest side
+  var peerMutedByHost = false;
+  var lockedByHost = false;
   var micBeforeLock = true;
 
   function updateMuteGuestBtn() {
@@ -1507,16 +1922,12 @@
       screenStream = stream;
       var pc = call.peerConnection;
 
-      // 1. Swap camera → screen video (no renegotiation needed)
       var screenVideo = stream.getVideoTracks()[0];
       var videoSender = pc.getSenders().find(function (s) {
         return s.track && s.track.kind === 'video';
       });
       if (videoSender) videoSender.replaceTrack(screenVideo);
 
-      // 2. Add system audio as an extra track so the mic keeps working.
-      //    Uses the SAME MediaStream object we passed to peer.call() so the
-      //    remote side receives it merged into one stream.
       var screenAudio = stream.getAudioTracks()[0];
       if (screenAudio) {
         try {
@@ -1530,7 +1941,6 @@
         sys('Sharing screen (browser did not provide system audio).');
       }
 
-      // Preview what we are sending
       els.localVideo.srcObject = stream;
 
       els.shareBtn.hidden = true;
@@ -1539,7 +1949,6 @@
       els.camBtn.disabled = true;
       els.flipBtn.disabled = true;
 
-      // User clicked the browser's own "Stop sharing" button
       screenVideo.addEventListener('ended', stopShare);
     }).catch(function (err) {
       if (err && err.name === 'NotAllowedError') sys('Screen share cancelled.');
@@ -1609,6 +2018,7 @@
     suppressPeerGone = true;
     stopStatsMonitor();
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    if (peerOpenTimer) { clearTimeout(peerOpenTimer); peerOpenTimer = null; }
     reconnectAttempts = 0;
 
     try { if (call) call.close(); } catch (e) {}
@@ -1627,6 +2037,7 @@
     screenAudioSender = null; camTrack = null; micTrack = null;
     roomCode = null; role = null;
     camOn = true; micOn = true;
+    usingCustomName = false;
     suppressPeerGone = false;
 
     els.localVideo.srcObject = null;
@@ -1655,8 +2066,10 @@
     els.stopShareBtn.hidden = true;
     els.reconnectBtn.hidden = true;
     els.netBadge.hidden = true;
-    els.createBtn.disabled = false;
-    els.joinBtn.disabled = false;
+    els.deviceSelectors.hidden = true;
+    els.cameraSelect.innerHTML = '';
+    els.micSelect.innerHTML = '';
+    resetCreateUI();
     els.joinInput.value = '';
     els.lobbyStatus.textContent = '';
     els.status.textContent = 'Idle';
@@ -1675,6 +2088,7 @@
   /* ---------------- startup ---------------- */
 
   if (checkCapabilities()) {
+    checkInitialPermissions();
     runDiagnostics();
   }
 
