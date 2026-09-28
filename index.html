@@ -130,6 +130,12 @@
     width: 320px; display: flex; flex-direction: column;
     border-left: 1px solid #30363d; min-height: 0;
   }
+  #chatToolbar {
+    display: flex; gap: 6px;
+    padding: 8px 10px; border-bottom: 1px solid #30363d;
+    background: #0d1117;
+  }
+  #chatToolbar button { font-size: 11px; padding: 5px 10px; }
   #chatLog {
     flex: 1; overflow-y: auto; padding: 12px;
     font-size: 13px; display: flex; flex-direction: column; gap: 6px;
@@ -443,6 +449,10 @@
       </div>
     </div>
     <aside id="sidebar">
+      <div id="chatToolbar">
+        <button id="copyChatBtn" class="smallBtn" type="button" hidden>Copy chat</button>
+        <button id="saveFilesBtn" class="smallBtn" type="button" hidden>Save attachments</button>
+      </div>
       <div id="chatLog"></div>
       <div id="chatBar">
         <button id="attachBtn" title="Attach file" disabled>&#128206;</button>
@@ -569,6 +579,8 @@
     roomCode: $('roomCode'), copyBtn: $('copyBtn'), status: $('status'),
     localVideo: $('localVideo'), remoteVideo: $('remoteVideo'),
     chatLog: $('chatLog'), chatInput: $('chatInput'), sendBtn: $('sendBtn'),
+    chatToolbar: $('chatToolbar'),
+    copyChatBtn: $('copyChatBtn'), saveFilesBtn: $('saveFilesBtn'),
     camBtn: $('camBtn'), micBtn: $('micBtn'), sysAudioBtn: $('sysAudioBtn'), flipBtn: $('flipBtn'),
     shareBtn: $('shareBtn'), stopShareBtn: $('stopShareBtn'),
     hangupBtn: $('hangupBtn'), reconnectBtn: $('reconnectBtn'),
@@ -834,7 +846,7 @@
   els.editRoomsBtnLobby.addEventListener('click', openRoomsModal);
   if (els.editRoomsBtnRoom) els.editRoomsBtnRoom.addEventListener('click', openRoomsModal);
 
-  /* ---------------- connection chime + announce ---------------- */
+  /* ---------------- connection chime ---------------- */
   var connectionAnnounced = false;
 
   function playConnectedChime() {
@@ -914,7 +926,6 @@
   var call = null;
   var conn = null;
   var screenStream = null;
-  var screenAudioSender = null;
   var camTrack = null;
   var micTrack = null;
   var camOn = true;
@@ -923,13 +934,17 @@
   var usingCustomName = false;
   var videoDevices = [];
 
-  // Screen-share audio mixing state
-  var sysAudioTrack = null;     // the "computer audio" track from getDisplayMedia
+  // Screen-share audio mixing
+  var sysAudioTrack = null;
   var sysAudioOn = false;
   var audioCtx = null;
   var micGainNode = null;
   var sysGainNode = null;
   var mixedAudioTrack = null;
+
+  // Chat queueing + transcript
+  var pendingMessages = [];   // queued while conn is not yet open
+  var transcript = [];        // everything for "Copy chat" / "Save attachments"
 
   /* ---------------- helpers ---------------- */
   function randomCode() {
@@ -955,6 +970,9 @@
     row.appendChild(document.createTextNode(text));
     els.chatLog.appendChild(row);
     els.chatLog.scrollTop = els.chatLog.scrollHeight;
+
+    if (cls === 'sys') transcript.push({ kind: 'sys', text: text });
+    else transcript.push({ kind: 'text', who: who || (cls === 'me' ? 'You' : 'Peer'), text: text });
   }
   function sys(t) { addMsg('sys', null, t); }
 
@@ -1056,8 +1074,7 @@
       var timer = setTimeout(finish, timeoutMs);
       function finish() {
         if (done) return;
-        done = true;
-        clearTimeout(timer);
+        done = true; clearTimeout(timer);
         try { pc.close(); } catch (e) {}
         resolve(types);
       }
@@ -1366,14 +1383,10 @@
       newTrack.enabled = micOn;
       micTrack = newTrack;
 
-      // If we're screen sharing right now, rebuild the mixer with the new mic track
       if (screenStream && sysAudioTrack) {
         rebuildMixedAudio();
-      } else if (call && call.peerConnection) {
-        var sender = call.peerConnection.getSenders().filter(function (s2) {
-          return s2.track && s2.track.kind === 'audio';
-        })[0];
-        if (sender) { try { sender.replaceTrack(newTrack); } catch (e) {} }
+      } else {
+        syncOutboundToCall();
       }
 
       showMicState();
@@ -1488,12 +1501,11 @@
     camTrack = newTrack;
     els.localVideo.srcObject = localStream;
     if (els.lobbyPreview) els.lobbyPreview.srcObject = localStream;
-    if (call && call.peerConnection) {
-      var sender = call.peerConnection.getSenders().filter(function (s) {
-        return s.track && s.track.kind === 'video';
-      })[0];
-      if (sender) { try { sender.replaceTrack(camTrack); } catch (e) {} }
+    if (screenStream) {
+      // still sharing: keep the screen on the wire, but the new cam is ready for later
+      return;
     }
+    syncOutboundToCall();
   }
 
   function flipCamera() {
@@ -1508,6 +1520,35 @@
     switchCamera(next.deviceId);
   }
   els.flipBtn.addEventListener('click', flipCamera);
+
+  /* ---------------- outbound track sync ---------------- */
+  // Applied whenever the call exists and the "current outbound" may have
+  // changed (screen share start/stop, mic switch, or a new call being set
+  // up while a share is already active).
+  function syncOutboundToCall() {
+    if (!call || !call.peerConnection) return;
+    var pc = call.peerConnection;
+
+    var videoSender = pc.getSenders().find(function (s) {
+      return s.track && s.track.kind === 'video';
+    });
+    if (videoSender) {
+      var wantVideo = (screenStream && screenStream.getVideoTracks()[0]) || camTrack;
+      if (wantVideo && videoSender.track !== wantVideo) {
+        try { videoSender.replaceTrack(wantVideo); } catch (e) { console.warn('replaceTrack video failed', e); }
+      }
+    }
+
+    var audioSender = pc.getSenders().find(function (s) {
+      return s.track && s.track.kind === 'audio';
+    });
+    if (audioSender) {
+      var wantAudio = mixedAudioTrack || micTrack;
+      if (wantAudio && audioSender.track !== wantAudio) {
+        try { audioSender.replaceTrack(wantAudio); } catch (e) { console.warn('replaceTrack audio failed', e); }
+      }
+    }
+  }
 
   /* ---------------- lobby actions ---------------- */
   els.createBtn.addEventListener('click', function () {
@@ -1538,6 +1579,7 @@
     roomCode = code;
     usingCustomName = false;
     connectionAnnounced = false;
+    rememberGuestRoom(code);
     bootPeer(null);
   });
 
@@ -1580,6 +1622,7 @@
         if (role === 'host') {
           setStatus('Waiting for peer…');
           sys('Share code "' + roomCode + '" with the other person.');
+          sys('You can already share your screen and queue messages and files \u2014 they will be delivered as soon as the peer joins.');
         } else {
           setStatus('Connecting…');
           connectToHost();
@@ -1612,6 +1655,15 @@
     els.flipBtn.disabled = videoDevices.length < 2;
     els.qualityBtn.disabled = false;
     els.shareBtn.disabled = false;
+
+    if (role === 'host') {
+      // Host can preload chat + screen-share before the peer arrives.
+      els.chatInput.disabled = false;
+      els.sendBtn.disabled = false;
+      els.attachBtn.disabled = false;
+      els.copyChatBtn.hidden = false;
+      els.saveFilesBtn.hidden = false;
+    }
     renderHostRooms();
   }
 
@@ -1666,6 +1718,9 @@
       call.peerConnection.addEventListener('iceconnectionstatechange', function () {
         handleIceState(call.peerConnection.iceConnectionState);
       });
+      // If we're already sharing screen / mixed audio before the peer
+      // arrived, put those tracks on the wire now.
+      syncOutboundToCall();
     }
   }
 
@@ -1681,6 +1736,8 @@
         els.muteGuestBtn.disabled = false;
         if (peerMutedByHost) conn.send({ type: 'host-mute', muted: true });
       }
+      // Deliver anything that was queued before the peer joined.
+      flushPending();
       sendMicState();
     });
 
@@ -1713,9 +1770,8 @@
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     setStatus('Peer left');
     sys('Peer disconnected.');
-    els.chatInput.disabled = true;
-    els.sendBtn.disabled = true;
-    els.attachBtn.disabled = true;
+    // Keep chat enabled so host (or guest) can still queue messages for when
+    // the peer returns; they'll be flushed on the next conn.open.
     els.netBadge.hidden = true;
     els.reconnectBtn.hidden = true;
     els.remoteVideo.srcObject = null;
@@ -1885,13 +1941,53 @@
     }
   }
 
+  /* ---------------- queued chat + files ---------------- */
+  function queueOrSendChat(text) {
+    if (conn && conn.open) {
+      conn.send({ type: 'chat', text: text });
+      addMsg('me', 'You', text);
+    } else {
+      pendingMessages.push({ kind: 'chat', text: text });
+      addMsg('me', 'You', text);
+      // Subtle note that it's held locally
+      if (pendingMessages.length === 1) {
+        sys('Messages are being queued and will be delivered when the peer joins.');
+      }
+    }
+  }
+
+  function queueOrSendFile(file) {
+    if (conn && conn.open) {
+      fileQueue = fileQueue.then(function () { return sendFile(file); });
+    } else {
+      var ui = addFileMsg('me', 'You', file.name, file.size, '\u2014 queued', file);
+      pendingMessages.push({ kind: 'file', file: file, ui: ui });
+      if (pendingMessages.length === 1) {
+        sys('Files are queued and will be sent when the peer joins.');
+      }
+    }
+  }
+
+  function flushPending() {
+    if (!conn || !conn.open) return;
+    if (!pendingMessages.length) return;
+    var queue = pendingMessages.slice();
+    pendingMessages = [];
+    sys('Sending ' + queue.length + ' queued item(s)…');
+    queue.forEach(function (item) {
+      if (item.kind === 'chat') {
+        conn.send({ type: 'chat', text: item.text });
+      } else if (item.kind === 'file') {
+        fileQueue = fileQueue.then(function () { return sendFile(item.file, item.ui); });
+      }
+    });
+  }
+
   /* ---------------- chat ---------------- */
   function sendChat() {
     var text = els.chatInput.value.trim();
     if (!text) return;
-    if (!conn || !conn.open) { sys('Chat not ready.'); return; }
-    conn.send({ type: 'chat', text: text });
-    addMsg('me', 'You', text);
+    queueOrSendChat(text);
     els.chatInput.value = '';
   }
   els.sendBtn.addEventListener('click', sendChat);
@@ -1909,7 +2005,7 @@
     return (n / 1048576).toFixed(1) + ' MB';
   }
 
-  function addFileMsg(cls, who, name, size, note) {
+  function addFileMsg(cls, who, name, size, note, sourceBlob) {
     var row = document.createElement('div');
     row.className = 'msg ' + cls;
     var b = document.createElement('b');
@@ -1923,11 +2019,23 @@
     row.appendChild(bar);
     els.chatLog.appendChild(row);
     els.chatLog.scrollTop = els.chatLog.scrollHeight;
+
+    var entry = {
+      kind: 'file', who: who, name: name, size: size,
+      blob: sourceBlob || null
+    };
+    transcript.push(entry);
+
     return {
       progress: function (f) { bar.value = f; },
-      note: function (t) { label.textContent = '\u{1F4CE} ' + name + ' (' + fmtSize(size) + ') ' + t; bar.remove(); },
+      note: function (t) {
+        label.textContent = '\u{1F4CE} ' + name + ' (' + fmtSize(size) + ') ' + t;
+        bar.remove();
+      },
       link: function (blob, mime) {
         bar.remove();
+        entry.blob = blob;
+        entry.mime = mime || '';
         var url = URL.createObjectURL(blob);
         label.textContent = '';
         var a = document.createElement('a');
@@ -1944,16 +2052,27 @@
     };
   }
 
-  function sendFile(file) {
+  function sendFile(file, existingUi) {
     return new Promise(function (resolve) {
-      if (!conn || !conn.open) { sys('Chat not ready — file not sent.'); return resolve(); }
-      if (file.size > MAX_FILE) { sys('"' + file.name + '" is larger than 50 MB and was not sent.'); return resolve(); }
+      if (!conn || !conn.open) {
+        if (existingUi) existingUi.note('\u2014 interrupted (peer left)');
+        else sys('Chat not ready — file not sent.');
+        return resolve();
+      }
+      if (file.size > MAX_FILE) {
+        if (existingUi) existingUi.note('\u2014 too large (max 50 MB)');
+        else sys('"' + file.name + '" is larger than 50 MB and was not sent.');
+        return resolve();
+      }
+
+      var ui = existingUi || addFileMsg('me', 'You', file.name, file.size, '\u2014 sending\u2026', file);
+      ui.note('\u2014 sending\u2026');
+
       var id = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-      var ui = addFileMsg('me', 'You', file.name, file.size, '\u2014 sending\u2026');
       var offset = 0, seq = 0;
       conn.send({ type: 'file-start', id: id, name: file.name, size: file.size, mime: file.type || 'application/octet-stream' });
       function pump() {
-        if (!conn || !conn.open) { ui.note('\u2014 interrupted'); return resolve(); }
+        if (!conn || !conn.open) { ui.note('\u2014 interrupted (peer left)'); return resolve(); }
         var dc = conn.dataChannel;
         if (dc && dc.bufferedAmount > 1048576) { setTimeout(pump, 60); return; }
         file.slice(offset, offset + CHUNK).arrayBuffer().then(function (buf) {
@@ -1961,7 +2080,11 @@
           offset += buf.byteLength;
           ui.progress(offset / file.size);
           if (offset < file.size) pump();
-          else { conn.send({ type: 'file-end', id: id }); ui.note('\u2014 sent \u2713'); resolve(); }
+          else {
+            conn.send({ type: 'file-end', id: id });
+            ui.note('\u2014 sent \u2713');
+            resolve();
+          }
         }).catch(function () { ui.note('\u2014 failed'); resolve(); });
       }
       if (file.size === 0) { conn.send({ type: 'file-end', id: id }); ui.note('\u2014 sent \u2713'); return resolve(); }
@@ -1991,9 +2114,64 @@
   els.attachBtn.addEventListener('click', function () { els.fileInput.click(); });
   els.fileInput.addEventListener('change', function () {
     Array.prototype.slice.call(els.fileInput.files).forEach(function (f) {
-      fileQueue = fileQueue.then(function () { return sendFile(f); });
+      queueOrSendFile(f);
     });
     els.fileInput.value = '';
+  });
+
+  /* ---------------- host: copy chat / save attachments ---------------- */
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve) {
+      var t = document.createElement('textarea');
+      t.value = text;
+      document.body.appendChild(t);
+      t.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(t);
+      resolve();
+    });
+  }
+
+  els.copyChatBtn.addEventListener('click', function () {
+    var lines = transcript.map(function (e) {
+      if (e.kind === 'sys') return '[system] ' + e.text;
+      if (e.kind === 'file') return e.who + ': [file] ' + e.name + (e.size ? ' (' + fmtSize(e.size) + ')' : '');
+      return (e.who || 'Peer') + ': ' + e.text;
+    });
+    var txt = lines.join('\n') || '(no chat yet)';
+    copyToClipboard(txt).then(function () {
+      els.copyChatBtn.textContent = 'Copied!';
+      setTimeout(function () { els.copyChatBtn.textContent = 'Copy chat'; }, 1200);
+    }, function () {
+      sys('Could not copy to clipboard.');
+    });
+  });
+
+  els.saveFilesBtn.addEventListener('click', function () {
+    var files = transcript.filter(function (e) {
+      return e.kind === 'file' && e.blob && e.size > 0;
+    });
+    if (!files.length) { sys('No attachments to save.'); return; }
+    sys('Saving ' + files.length + ' attachment(s) \u2014 your browser may ask for each one.');
+    files.forEach(function (e, i) {
+      setTimeout(function () {
+        try {
+          var url = URL.createObjectURL(e.blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = e.name || ('file-' + (i + 1));
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+        } catch (err) {
+          console.warn('Could not save', e.name, err);
+        }
+      }, i * 250);
+    });
   });
 
   /* ---------------- video quality ---------------- */
@@ -2141,7 +2319,7 @@
     sendMicState();
   }
 
-  /* ---------------- camera / mic / computer audio toggles ---------------- */
+  /* ---------------- camera / mic / computer audio ---------------- */
   els.camBtn.addEventListener('click', function () {
     if (!camTrack) return;
     camOn = !camOn;
@@ -2166,23 +2344,9 @@
   });
 
   /* ---------------- screen sharing with audio mixing ---------------- */
-  //
-  // Notes on how this works:
-  //  * The browser's own picker lets the user choose Screen / Window / Tab.
-  //    We can only hint at a preference (displaySurface), the user picks.
-  //  * getDisplayMedia({ audio: true }) asks the browser to include system
-  //    (or tab) audio. On Chrome/Edge desktop the user must tick "Share
-  //    audio" in the picker. On macOS Safari system audio is not offered
-  //    at all, and on mobile platforms screen sharing may not be supported.
-  //  * When system audio IS available we mix it with the mic through a
-  //    Web Audio graph so the peer receives a single combined audio track.
-  //    The "Computer audio" button mutes/unmutes the system-audio source
-  //    without disturbing the microphone.
-  //
-
   function buildMixedAudio(micT, sysT) {
     var Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return sysT;   // no mixing available: fall back to sys audio only
+    if (!Ctx) return sysT;
     if (audioCtx) { try { audioCtx.close(); } catch (e) {} audioCtx = null; }
     micGainNode = null; sysGainNode = null;
 
@@ -2214,17 +2378,13 @@
     var newMixed = buildMixedAudio(micTrack, sysAudioTrack);
     if (!newMixed) return;
     mixedAudioTrack = newMixed;
-    if (call && call.peerConnection) {
-      var sender = call.peerConnection.getSenders().find(function (s) {
-        return s.track && s.track.kind === 'audio';
-      });
-      if (sender) { try { sender.replaceTrack(newMixed); } catch (e) { console.warn(e); } }
-    }
+    syncOutboundToCall();
   }
 
-  els.shareBtn.addEventListener('click', function () {
-    if (!call || !call.peerConnection || screenStream) return;
-
+  // Start screen share — allowed even before the peer joins so the host
+  // can prepare the class.
+  function startScreenShare() {
+    if (screenStream) return;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
       sys('Screen sharing is not supported in this browser.');
       return;
@@ -2242,46 +2402,25 @@
       }
     }).then(function (stream) {
       screenStream = stream;
-      var pc = call.peerConnection;
-
-      // ---- video: swap camera -> screen ----
       var screenVideo = stream.getVideoTracks()[0];
-      var videoSender = pc.getSenders().find(function (s) {
-        return s.track && s.track.kind === 'video';
-      });
-      if (videoSender) { try { videoSender.replaceTrack(screenVideo); } catch (e) { console.warn(e); } }
-
-      // ---- audio: mix mic + system audio (if provided) ----
       var screenAudio = stream.getAudioTracks()[0];
-      var audioSender = pc.getSenders().find(function (s) {
-        return s.track && s.track.kind === 'audio';
-      });
 
       if (screenAudio) {
         sysAudioTrack = screenAudio;
         sysAudioOn = true;
-
-        if (micTrack) {
-          mixedAudioTrack = buildMixedAudio(micTrack, screenAudio) || screenAudio;
-        } else {
-          mixedAudioTrack = screenAudio;
-        }
-
-        if (audioSender) {
-          try { audioSender.replaceTrack(mixedAudioTrack); }
-          catch (e) { console.warn('replaceTrack audio failed, adding instead', e); try { pc.addTrack(mixedAudioTrack, localStream); } catch (e2) {} }
-        } else {
-          try { pc.addTrack(mixedAudioTrack, localStream); } catch (e) { console.warn(e); }
-        }
-
+        mixedAudioTrack = micTrack ? (buildMixedAudio(micTrack, screenAudio) || screenAudio) : screenAudio;
         els.sysAudioBtn.hidden = false;
         els.sysAudioBtn.disabled = false;
         els.sysAudioBtn.textContent = 'Computer audio: On';
-        sys('Sharing screen with computer audio (mixed with your microphone). Use the "Computer audio" button to mute just the computer side.');
       } else {
-        sys('Sharing screen. The browser did not provide system audio \u2014 on Chrome/Edge tick "Share audio" in the picker next time to include it.');
+        sysAudioTrack = null;
+        mixedAudioTrack = null;
+        els.sysAudioBtn.hidden = true;
+        els.sysAudioBtn.disabled = true;
+        els.sysAudioBtn.textContent = 'Computer audio: Off';
       }
 
+      // Preview the shared stream locally
       els.localVideo.srcObject = stream;
       els.shareBtn.hidden = true;
       els.shareBtn.disabled = true;
@@ -2289,14 +2428,27 @@
       els.camBtn.disabled = true;
       els.flipBtn.disabled = true;
 
+      // Push onto any active call
+      syncOutboundToCall();
+
+      if (screenAudio) {
+        sys('Sharing screen with computer audio (mixed with your microphone). Use "Computer audio" to mute just the computer side.');
+      } else {
+        sys('Sharing screen. No system audio was provided \u2014 on Chrome/Edge tick "Share audio" in the picker to include it next time.');
+      }
+      if (!call) {
+        sys('The peer hasn\u2019t joined yet \u2014 your screen will be shown automatically when they connect.');
+      }
+
       screenVideo.addEventListener('ended', stopShare);
     }).catch(function (err) {
       if (err && err.name === 'NotAllowedError') sys('Screen share cancelled.');
       else if (err && err.name === 'NotSupportedError') sys('Screen sharing is not supported on this device.');
       else sys('Screen share failed: ' + (err && err.message ? err.message : 'unknown error'));
     });
-  });
+  }
 
+  els.shareBtn.addEventListener('click', startScreenShare);
   els.stopShareBtn.addEventListener('click', stopShare);
 
   function stopShare() {
@@ -2306,65 +2458,35 @@
 
     stream.getTracks().forEach(function (t) { t.stop(); });
 
-    // Restore camera video
-    if (call && call.peerConnection) {
-      var pc = call.peerConnection;
-      var videoSender = pc.getSenders().find(function (s) {
-        return s.track && s.track.kind === 'video';
-      });
-      if (videoSender && camTrack) {
-        try { videoSender.replaceTrack(camTrack); } catch (e) {}
-      }
-
-      // Restore audio: put the plain mic back on the wire
-      var audioSender = pc.getSenders().find(function (s) {
-        return s.track && s.track.kind === 'audio';
-      });
-      if (audioSender && micTrack) {
-        try { audioSender.replaceTrack(micTrack); } catch (e) {}
-      }
-    }
-
-    // Tear down the audio mixer
     if (audioCtx) { try { audioCtx.close(); } catch (e) {} audioCtx = null; }
-    micGainNode = null;
-    sysGainNode = null;
-    mixedAudioTrack = null;
-    sysAudioTrack = null;
-    sysAudioOn = false;
+    micGainNode = null; sysGainNode = null; mixedAudioTrack = null;
+    sysAudioTrack = null; sysAudioOn = false;
+
+    if (localStream) els.localVideo.srcObject = localStream;
 
     els.sysAudioBtn.hidden = true;
     els.sysAudioBtn.disabled = true;
     els.sysAudioBtn.textContent = 'Computer audio: Off';
-
-    if (localStream) els.localVideo.srcObject = localStream;
 
     els.shareBtn.hidden = false;
     els.shareBtn.disabled = false;
     els.stopShareBtn.hidden = true;
     els.camBtn.disabled = false;
     els.flipBtn.disabled = videoDevices.length < 2;
+
+    // Put cam + mic back on the wire
+    syncOutboundToCall();
+
     sys('Stopped sharing.');
   }
 
   /* ---------------- copy room code ---------------- */
   els.copyBtn.addEventListener('click', function () {
     if (!roomCode) return;
-    var done = function () {
+    copyToClipboard(roomCode).then(function () {
       els.copyBtn.textContent = 'Copied!';
       setTimeout(function () { els.copyBtn.textContent = 'Copy'; }, 1200);
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(roomCode).then(done, done);
-    } else {
-      var t = document.createElement('textarea');
-      t.value = roomCode;
-      document.body.appendChild(t);
-      t.select();
-      try { document.execCommand('copy'); } catch (e) {}
-      document.body.removeChild(t);
-      done();
-    }
+    });
   });
 
   /* ---------------- host room switcher ---------------- */
@@ -2373,7 +2495,6 @@
     var newName = sanitizeRoomName(els.hostRoomSelect.value);
     if (!newName || newName === roomCode) return;
 
-    // Close the current room but keep the camera/mic stream alive.
     suppressPeerGone = true;
     exitWaitingRoom();
     stopStatsMonitor();
@@ -2389,6 +2510,8 @@
     remoteStream = null;
     els.remoteVideo.srcObject = null;
     els.chatLog.innerHTML = '';
+    transcript = [];
+    pendingMessages = [];
     els.chatInput.disabled = true;
     els.sendBtn.disabled = true;
     els.attachBtn.disabled = true;
@@ -2435,7 +2558,7 @@
 
     peer = null; call = null; conn = null;
     localStream = null; remoteStream = null; screenStream = null;
-    screenAudioSender = null; camTrack = null; micTrack = null;
+    camTrack = null; micTrack = null;
     roomCode = null; role = null;
     camOn = true; micOn = true;
     usingCustomName = false;
@@ -2446,15 +2569,21 @@
     els.remoteVideo.srcObject = null;
     if (els.lobbyPreview) els.lobbyPreview.srcObject = null;
     els.chatLog.innerHTML = '';
+    transcript = [];
+    pendingMessages = [];
+    fileQueue = Promise.resolve();
+    incoming = {};
+
     els.chatInput.value = '';
     els.chatInput.disabled = true;
     els.sendBtn.disabled = true;
     els.attachBtn.disabled = true;
+    els.copyChatBtn.hidden = true;
+    els.saveFilesBtn.hidden = true;
     els.camBtn.disabled = true;
     els.micBtn.disabled = true;
     els.flipBtn.disabled = true;
     els.qualityBtn.disabled = true;
-    incoming = {};
     els.muteGuestBtn.hidden = true;
     els.muteGuestBtn.disabled = true;
     peerMutedByHost = false; lockedByHost = false; micBeforeLock = true;
