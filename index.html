@@ -1164,23 +1164,62 @@
       retryHostConnect();
     }, delay);
   }
-  // Rebuild the guest Peer if it was destroyed by a previous peer-unavailable,
-  // otherwise just dial again. This is what keeps the waiting-room loop alive.
-  function retryHostConnect() {
-    if (!waitingForHost || role !== 'guest') return;
+  // Dial the host again from scratch. Rebuilds the guest Peer if it is gone.
+  function redialHost() {
+    if (role !== 'guest' || !roomCode) return;
     if (peer && !peer.destroyed && !peer.disconnected) {
       try {
         connectToHost();
         return;
       } catch (e) {
-        console.warn('[retry] connectToHost threw, rebuilding peer', e);
+        console.warn('[redial] connectToHost threw, rebuilding peer', e);
       }
     }
-    console.log('[retry] rebuilding guest peer (destroyed=' +
+    console.log('[redial] rebuilding guest peer (destroyed=' +
       (peer && peer.destroyed) + ', disconnected=' +
       (peer && peer.disconnected) + ')');
     destroyPeer();
     createPeer(null);
+  }
+  // Waiting-room retry tick.
+  function retryHostConnect() {
+    if (!waitingForHost || role !== 'guest') return;
+    redialHost();
+  }
+
+  /* ---- dial watchdog ----
+     A dial is only retried when the signaling server reports an error. If the
+     host shows up while a dial is in flight, the offer can be delivered but the
+     media call may never complete, and then NO error ever arrives and nothing
+     would retry. The watchdog guarantees a fresh dial if video hasn't arrived. */
+  var mediaUp = false;               // guest: remote video stream received
+  var dialWatchdog = null;
+  var watchdogRedials = 0;
+  var DIAL_WATCHDOG_MS = 10000;
+  var MAX_WATCHDOG_REDIALS = 5;
+  function clearDialWatchdog() {
+    if (dialWatchdog) { clearTimeout(dialWatchdog); dialWatchdog = null; }
+  }
+  function armDialWatchdog() {
+    clearDialWatchdog();
+    if (role !== 'guest') return;
+    dialWatchdog = setTimeout(function () {
+      dialWatchdog = null;
+      if (role !== 'guest' || !roomCode || mediaUp) return;
+      if (waitForHostTimer) return;          // a normal retry is already queued
+      if (!waitingForHost) {
+        // Host is reachable but video did not come up: limited silent redials.
+        if (watchdogRedials >= MAX_WATCHDOG_REDIALS) {
+          setStatus('Video could not be established');
+          sys('Video could not be established after several attempts. Try "Reconnect now".');
+          els.reconnectBtn.hidden = false;
+          return;
+        }
+        watchdogRedials++;
+        sys('No video yet \u2014 redialing (' + watchdogRedials + '/' + MAX_WATCHDOG_REDIALS + ')\u2026');
+      }
+      redialHost();
+    }, DIAL_WATCHDOG_MS);
   }
   els.cancelWaitBtn.addEventListener('click', function () {
     exitWaitingRoom();
@@ -2072,15 +2111,38 @@
   }
 
   /* ---------------- host: incoming ---------------- */
+  // A call counts as "live" only if its media path is really up. PeerJS marks
+  // the answering side .open the moment it answers, so .open can't be trusted.
+  function isCallLive(c) {
+    var pc = c && c.peerConnection;
+    if (!pc) return false;
+    var st = pc.iceConnectionState;
+    return st === 'connected' || st === 'completed';
+  }
+  // Newest attempt wins. We only refuse when a DIFFERENT peer is already
+  // properly connected; a redial from the same student (or a dead/unfinished
+  // earlier attempt) is simply replaced. The old object is closed AFTER it has
+  // been replaced, so its late 'close' event is ignored by the guards in
+  // wireCall/wireConn.
   function handleIncomingCall(incoming) {
-    if (call) { try { incoming.close(); } catch (e) {} return; }
+    if (call && call.peer !== incoming.peer && isCallLive(call)) {
+      try { incoming.close(); } catch (e) {}
+      return;
+    }
+    var old = call;
     call = incoming;
+    if (old) { try { old.close(); } catch (e) {} }
     call.answer(localStream);
     wireCall();
   }
   function handleIncomingConn(c) {
-    if (conn && conn.open) { try { c.close(); } catch (e) {} return; }
+    if (conn && conn.open && conn.peer !== c.peer) {
+      try { c.close(); } catch (e) {}
+      return;
+    }
+    var old = conn;
     conn = c;
+    if (old) { try { old.close(); } catch (e) {} }
     wireConn();
   }
 
@@ -2097,23 +2159,31 @@
     call = null; conn = null;
     setTimeout(function () { suppressPeerGone = false; }, 250);
 
+    mediaUp = false;
     conn = peer.connect(targetId, { reliable: true });
     wireConn();
     call = peer.call(targetId, localStream);
     wireCall();
+    armDialWatchdog();
   }
 
   /* ---------------- call/data plumbing ---------------- */
+  /* ---------------- call/data plumbing ---------------- */
   function wireCall() {
+    var thisCall = call;
     remoteStream = new MediaStream();
     els.remoteVideo.srcObject = remoteStream;
 
-    call.on('stream', function (stream) {
+    thisCall.on('stream', function (stream) {
+      if (thisCall !== call) return;          // superseded attempt
       stream.getTracks().forEach(function (t) {
         var already = remoteStream.getTracks().some(function (x) { return x.id === t.id; });
         if (!already) remoteStream.addTrack(t);
       });
       els.remoteVideo.play().catch(function () {});
+      mediaUp = true;
+      watchdogRedials = 0;
+      clearDialWatchdog();
       announceConnection();
       autoLevel = 0; goodChecks = 0;
       applyQuality();
@@ -2122,19 +2192,26 @@
       startStatsMonitor();
     });
 
-    call.on('close', onPeerGone);
-    call.on('error', function (err) { console.error('Call error', err); });
+    thisCall.on('close', function () {
+      if (thisCall !== call) return;          // stale close must not wipe the new call
+      onPeerGone();
+    });
+    thisCall.on('error', function (err) { console.error('Call error', err); });
 
-    if (call.peerConnection) {
-      call.peerConnection.addEventListener('iceconnectionstatechange', function () {
-        handleIceState(call.peerConnection.iceConnectionState);
+    var pc = thisCall.peerConnection;
+    if (pc) {
+      pc.addEventListener('iceconnectionstatechange', function () {
+        if (thisCall !== call) return;
+        handleIceState(pc.iceConnectionState);
       });
       syncOutboundToCall();
     }
   }
 
   function wireConn() {
-    conn.on('open', function () {
+    var thisConn = conn;
+    thisConn.on('open', function () {
+      if (thisConn !== conn) return;          // superseded attempt
       els.chatInput.disabled = false;
       els.sendBtn.disabled = false;
       els.attachBtn.disabled = false;
@@ -2155,7 +2232,8 @@
       scheduleChatCollapse();
     });
 
-    conn.on('data', function (data) {
+    thisConn.on('data', function (data) {
+      if (thisConn !== conn) return;
       if (!data) return;
       if (data.type === 'chat') {
         addMsg('them', 'Peer', String(data.text));
@@ -2174,12 +2252,17 @@
       }
     });
 
-    conn.on('close', onPeerGone);
-    conn.on('error', function (err) { console.error('Data error', err); });
+    thisConn.on('close', function () {
+      if (thisConn !== conn) return;          // stale close must not wipe the new conn
+      onPeerGone();
+    });
+    thisConn.on('error', function (err) { console.error('Data error', err); });
 
-    if (conn.peerConnection) {
-      conn.peerConnection.addEventListener('iceconnectionstatechange', function () {
-        handleIceState(conn.peerConnection.iceConnectionState);
+    var cpc = thisConn.peerConnection;
+    if (cpc) {
+      cpc.addEventListener('iceconnectionstatechange', function () {
+        if (thisConn !== conn) return;
+        handleIceState(cpc.iceConnectionState);
       });
     }
   }
@@ -2239,11 +2322,27 @@
     els.reconnectBtn.hidden = true;
     els.remoteVideo.srcObject = null;
     remoteStream = null;
+    // Detach first, then close, so late events from the old objects are ignored.
+    var oldCall = call, oldConn = conn;
     call = null;
     conn = null;
+    try { if (oldCall) oldCall.close(); } catch (e) {}
+    try { if (oldConn) oldConn.close(); } catch (e) {}
+    mediaUp = false;
+    clearDialWatchdog();
     els.makeModBtn.hidden = true;
     els.muteGuestBtn.hidden = true;
     updateTeacherControls();
+
+    if (role === 'guest') {
+      // The host left (switched class, closed the room, dropped). Don't strand
+      // the student: go back to the waiting room and reconnect automatically.
+      connectionAnnounced = false;
+      reconnectAttempts = 0;
+      watchdogRedials = 0;
+      enterWaitingRoom();
+      scheduleHostRetry(2500);
+    }
   }
 
   /* ---------------- ICE + reconnect ---------------- */
@@ -2300,6 +2399,7 @@
   }
   els.reconnectBtn.addEventListener('click', function () {
     reconnectAttempts = 0;
+    watchdogRedials = 0;
     els.reconnectBtn.hidden = true;
     attemptReconnect();
   });
@@ -2388,7 +2488,16 @@
         scheduleHostRetry(2500);
         return;
       }
-      if (role === 'guest' && !connectionAnnounced) {
+      if (role === 'guest') {
+        // Late/stale error from an earlier dial while we are actually connected.
+        if (mediaUp || (conn && conn.open) || isCallLive(call)) {
+          console.warn('[peer-unavailable] ignored, already connected');
+          return;
+        }
+        // Even a student who was connected before goes back to waiting; never
+        // throw them out to the lobby just because the teacher is away.
+        connectionAnnounced = false;
+        mediaUp = false;
         enterWaitingRoom();
         return;
       }
@@ -3065,6 +3174,9 @@
   els.hangupBtn.addEventListener('click', leaveRoom);
 
   function leaveRoom() {
+    clearDialWatchdog();
+    mediaUp = false;
+    watchdogRedials = 0;
     suppressPeerGone = true;
     exitWaitingRoom();
     stopStatsMonitor();
