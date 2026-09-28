@@ -2,6 +2,99 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
+<script>
+
+        (function () {
+            'use strict';
+            const PROTECTION = window.PROTECTION = {
+                enabled: true,
+                blockDevtoolsShortcuts: true,
+                detectDevtools: true,      // deteccion por diferencia de tamano de ventana
+                devtoolsThreshold: 200     // px; alto para evitar falsos positivos
+            };
+
+            const isEditable = (t) => !!(t && t.closest &&
+                t.closest('input, textarea, select, [contenteditable="true"]'));
+            const stop = (e) => { e.preventDefault(); e.stopPropagation(); return false; };
+
+            // Estilos: sin seleccion de texto salvo en campos de formulario
+            const st = document.createElement('style');
+            st.textContent =
+                'html.protected body{-webkit-user-select:none;-moz-user-select:none;user-select:none;' +
+                '-webkit-touch-callout:none;}' +
+                'html.protected input,html.protected textarea,html.protected select,' +
+                'html.protected [contenteditable="true"]{-webkit-user-select:text;-moz-user-select:text;user-select:text;}' +
+                'html.protected img,html.protected canvas{-webkit-user-drag:none;user-drag:none;}' +
+                '#devtoolsShield{position:fixed;inset:0;z-index:2147483647;background:#0b3b5c;color:#fff;' +
+                'display:none;align-items:center;justify-content:center;text-align:center;padding:24px;' +
+                'font:600 1rem Arial,sans-serif;}' +
+                '#devtoolsShield.on{display:flex;}';
+            document.head.appendChild(st);
+            document.documentElement.classList.add('protected');
+
+            // Clic derecho / menu contextual
+            document.addEventListener('contextmenu', (e) => {
+                if (!PROTECTION.enabled) return;
+                if (isEditable(e.target)) return;
+                return stop(e);
+            }, true);
+
+            // Copiar, cortar, seleccionar, arrastrar (fuera de campos de formulario)
+            ['copy', 'cut', 'selectstart', 'dragstart'].forEach((ev) => {
+                document.addEventListener(ev, (e) => {
+                    if (!PROTECTION.enabled) return;
+                    if (isEditable(e.target)) return;
+                    return stop(e);
+                }, true);
+            });
+
+            // Atajos de teclado
+            window.addEventListener('keydown', (e) => {
+                if (!PROTECTION.enabled) return;
+                const k = (e.key || '').toLowerCase();
+                const ctrl = e.ctrlKey || e.metaKey;
+                let block = false;
+
+                if (PROTECTION.blockDevtoolsShortcuts) {
+                    if (e.key === 'F12') block = true;
+                    // Ctrl/Cmd+Shift+I, J, C, K (herramientas de desarrollo, consola, inspector)
+                    if (ctrl && e.shiftKey && ['i', 'j', 'c', 'k'].includes(k)) block = true;
+                    // Cmd+Option+I / J / C / U (macOS)
+                    if (e.metaKey && e.altKey && ['i', 'j', 'c', 'u'].includes(k)) block = true;
+                    // Ver codigo fuente
+                    if (ctrl && k === 'u') block = true;
+                }
+                // Guardar pagina
+                if (ctrl && k === 's') block = true;
+                // Seleccionar todo / copiar / cortar fuera de campos de formulario
+                if (ctrl && ['a', 'c', 'x'].includes(k) && !isEditable(e.target)) block = true;
+
+                if (block) stop(e);
+            }, true);
+
+            // Deteccion de herramientas de desarrollo abiertas (dock lateral o inferior).
+            // Umbral alto para no molestar a usuarios con zoom, barras laterales, etc.
+            const shield = document.createElement('div');
+            shield.id = 'devtoolsShield';
+            shield.textContent = 'Cierra las herramientas de desarrollo para continuar.';
+            const attachShield = () => { if (!shield.parentNode) document.body.appendChild(shield); };
+            if (document.body) attachShield(); else document.addEventListener('DOMContentLoaded', attachShield);
+
+            let lastOpen = false;
+            setInterval(() => {
+                if (!PROTECTION.enabled || !PROTECTION.detectDevtools) {
+                    shield.classList.remove('on'); return;
+                }
+                const wGap = window.outerWidth - window.innerWidth;
+                const hGap = window.outerHeight - window.innerHeight;
+                const open = wGap > PROTECTION.devtoolsThreshold || hGap > PROTECTION.devtoolsThreshold;
+                if (open !== lastOpen) {
+                    lastOpen = open;
+                    shield.classList.toggle('on', open);
+                }
+            }, 1000);
+        })();
+    </script>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>English Class Chat by Anthony Rostron</title>
 <style>
@@ -280,6 +373,10 @@
   .badge.relay  { border-color: #d29922; color: #e3b341; }
   .badge.bad    { border-color: #f85149; color: #f85149; }
   .badge.mod    { border-color: #d29922; color: #e3b341; background: #2b2111; }
+  .stItem { margin-left: 12px; white-space: nowrap; }
+  .stItem.ok { color: #3fb950; }
+  .stItem.warn { color: #e3b341; }
+  .stItem.bad { color: #f85149; }
   .advToggle {
     background: none; border: none; color: #58a6ff; font-size: 12px;
     cursor: pointer; padding: 0; margin-top: 16px; text-decoration: underline;
@@ -507,11 +604,11 @@
 
     <p id="lobbyStatus"></p>
 
-    <div id="netDiag" class="diag checking">Checking your network for STUN/TURN connectivity…</div>
+    <div id="netDiag" class="diag checking">Checking connection…</div>
 
     <button id="advToggleBtn" class="advToggle" type="button">Advanced network settings</button>
     <div id="advPanel" class="advPanel">
-      <p class="hint">Optional. This app uses public Google STUN servers, a shared free TURN relay (Open Relay/Metered, capped at 20&nbsp;GB/month), and the public PeerJS signaling cloud. Some corporate, school or hotel networks block one or more of these. If calls keep failing, point the app at your own servers instead.</p>
+      <p class="hint">Optional. If calls keep failing on your network, you can point the app at your own TURN relay or signaling server.</p>
 
       <h3>Your own TURN relay</h3>
       <label>TURN URL (e.g. turn:your-server:443?transport=tcp)</label>
@@ -730,6 +827,35 @@
 (function () {
   'use strict';
 
+  /* ---------------- hidden debug log (Ctrl+Alt+B copies it) ---------------- */
+  var dbgBuf = [];
+  var DBG_MAX = 3000;
+  function dbg(msg) {
+    var d = new Date();
+    var t = d.toTimeString().slice(0, 8) + '.' + ('00' + d.getMilliseconds()).slice(-3);
+    dbgBuf.push(t + ' ' + msg);
+    if (dbgBuf.length > DBG_MAX) dbgBuf.splice(0, dbgBuf.length - DBG_MAX);
+  }
+  (function hookConsole() {
+    function fmt(a) {
+      if (a && a.stack) return String(a.stack);
+      if (a && typeof a === 'object') {
+        if (a.message) return (a.type ? a.type + ': ' : '') + a.message;
+        try { return JSON.stringify(a).slice(0, 300); } catch (e) { return String(a); }
+      }
+      return String(a);
+    }
+    ['log', 'warn', 'error'].forEach(function (k) {
+      var orig = console[k];
+      console[k] = function () {
+        try { dbg('[' + k + '] ' + Array.prototype.map.call(arguments, fmt).join(' ')); } catch (e) {}
+        return orig.apply(console, arguments);
+      };
+    });
+    window.addEventListener('error', function (e) { dbg('[uncaught] ' + (e.message || '') + ' @' + (e.lineno || '?')); });
+    window.addEventListener('unhandledrejection', function (e) { dbg('[unhandled] ' + fmt(e.reason)); });
+  })();
+
   var $ = function (id) { return document.getElementById(id); };
 
   var els = {
@@ -842,13 +968,39 @@
     'stun:stun1.l.google.com:19302',
     'stun:stun2.l.google.com:19302'
   ];
-  var BUILTIN_TURN = [
-    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:80?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-  ];
+  /* Relay ladder. Level 0 = STUN only (no relay). Level 1 and 2 add relay
+     servers, and are only reached automatically when the level below could not
+     connect. The server list is stored encoded. */
+  var RELAY_CFG =
+    'eyJhIjpbeyJ1cmxzIjoidHVybjpmcmVlLmV4cHJlc3N0dXJuLmNvbTozNDc4IiwidXNlcm5hbWUiOiIwMDAwMDAwMDIxMDU5' +
+    'MzYxNzciLCJjcmVkZW50aWFsIjoiTUhIbnhvM2lzZEMyZE5Hd2g3RGI0T1kzS09vPSJ9LHsidXJscyI6InR1cm46ZnJlZS5l' +
+    'eHByZXNzdHVybi5jb206MzQ3OD90cmFuc3BvcnQ9dGNwIiwidXNlcm5hbWUiOiIwMDAwMDAwMDIxMDU5MzYxNzciLCJjcmVk' +
+    'ZW50aWFsIjoiTUhIbnhvM2lzZEMyZE5Hd2g3RGI0T1kzS09vPSJ9LHsidXJscyI6InR1cm46ZnJlZS5leHByZXNzdHVybi5j' +
+    'b206ODA/dHJhbnNwb3J0PXRjcCIsInVzZXJuYW1lIjoiMDAwMDAwMDAyMTA1OTM2MTc3IiwiY3JlZGVudGlhbCI6Ik1ISG54' +
+    'bzNpc2RDMmROR3doN0RiNE9ZM0tPbz0ifSx7InVybHMiOiJ0dXJuOmZyZWUuZXhwcmVzc3R1cm4uY29tOjQ0Mz90cmFuc3Bv' +
+    'cnQ9dGNwIiwidXNlcm5hbWUiOiIwMDAwMDAwMDIxMDU5MzYxNzciLCJjcmVkZW50aWFsIjoiTUhIbnhvM2lzZEMyZE5Hd2g3' +
+    'RGI0T1kzS09vPSJ9XSwiYiI6W3sidXJscyI6InN0dW46c3R1bi5yZWxheS5tZXRlcmVkLmNhOjgwIn0seyJ1cmxzIjoidHVy' +
+    'bjpzdGFuZGFyZC5yZWxheS5tZXRlcmVkLmNhOjgwIiwidXNlcm5hbWUiOiJjNmJlZDYzZDljNzhmMTkxOTQxMjYzNDQiLCJj' +
+    'cmVkZW50aWFsIjoibkRGZ3RGRUtXNFJBTHVQNCJ9LHsidXJscyI6InR1cm46c3RhbmRhcmQucmVsYXkubWV0ZXJlZC5jYTo4' +
+    'MD90cmFuc3BvcnQ9dGNwIiwidXNlcm5hbWUiOiJjNmJlZDYzZDljNzhmMTkxOTQxMjYzNDQiLCJjcmVkZW50aWFsIjoibkRG' +
+    'Z3RGRUtXNFJBTHVQNCJ9LHsidXJscyI6InR1cm46c3RhbmRhcmQucmVsYXkubWV0ZXJlZC5jYTo0NDMiLCJ1c2VybmFtZSI6' +
+    'ImM2YmVkNjNkOWM3OGYxOTE5NDEyNjM0NCIsImNyZWRlbnRpYWwiOiJuREZndEZFS1c0UkFMdVA0In0seyJ1cmxzIjoidHVy' +
+    'bnM6c3RhbmRhcmQucmVsYXkubWV0ZXJlZC5jYTo0NDM/dHJhbnNwb3J0PXRjcCIsInVzZXJuYW1lIjoiYzZiZWQ2M2Q5Yzc4' +
+    'ZjE5MTk0MTI2MzQ0IiwiY3JlZGVudGlhbCI6Im5ERmd0RkVLVzRSQUx1UDQifV19';
+  var RELAY_MAX_TIER = 2;
+  var relayTier = 0;
+  var relayCache = null;
+  function relayCfg() {
+    if (relayCache) return relayCache;
+    try { relayCache = JSON.parse(atob(RELAY_CFG)); } catch (e) { relayCache = {}; }
+    return relayCache;
+  }
+  function relayServersForTier(t) {
+    var c = relayCfg();
+    if (t === 1) return c.a || [];
+    if (t === 2) return c.b || [];
+    return [];
+  }
 
   /* ---------------- advanced settings ---------------- */
   function loadAdv() {
@@ -857,9 +1009,10 @@
   function saveAdv(s) {
     try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch (e) {}
   }
-  function buildIceServers() {
+  function buildIceServers(tier) {
     var adv = loadAdv();
-    var servers = [{ urls: BUILTIN_STUN }].concat(BUILTIN_TURN);
+    var t = (typeof tier === 'number') ? tier : relayTier;
+    var servers = [{ urls: BUILTIN_STUN }].concat(relayServersForTier(t));
     if (adv.turnUrl) {
       servers.push({ urls: adv.turnUrl, username: adv.turnUser || '', credential: adv.turnCred || '' });
     }
@@ -1193,12 +1346,25 @@
      media call may never complete, and then NO error ever arrives and nothing
      would retry. The watchdog guarantees a fresh dial if video hasn't arrived. */
   var mediaUp = false;               // guest: remote video stream received
+  var dialUnavailable = false;       // guest: signaling said the host is not there (this dial)
   var dialWatchdog = null;
   var watchdogRedials = 0;
   var DIAL_WATCHDOG_MS = 10000;
   var MAX_WATCHDOG_REDIALS = 5;
   function clearDialWatchdog() {
     if (dialWatchdog) { clearTimeout(dialWatchdog); dialWatchdog = null; }
+  }
+  // Climb one relay level and rebuild the Peer so the new servers are used.
+  function escalateRelay(why) {
+    if (role !== 'guest' || relayTier >= RELAY_MAX_TIER) return false;
+    relayTier++;
+    dbg('[relay] moving to level ' + relayTier + ' (' + why + ')');
+    if (waitForHostTimer) { clearTimeout(waitForHostTimer); waitForHostTimer = null; }
+    mediaUp = false;
+    connectionAnnounced = false;
+    destroyPeer();
+    createPeer(null);
+    return true;
   }
   function armDialWatchdog() {
     clearDialWatchdog();
@@ -1207,17 +1373,18 @@
       dialWatchdog = null;
       if (role !== 'guest' || !roomCode || mediaUp) return;
       if (waitForHostTimer) return;          // a normal retry is already queued
-      if (!waitingForHost) {
-        // Host is reachable but video did not come up: limited silent redials.
-        if (watchdogRedials >= MAX_WATCHDOG_REDIALS) {
-          setStatus('Video could not be established');
-          sys('Video could not be established after several attempts. Try "Reconnect now".');
-          els.reconnectBtn.hidden = false;
-          return;
-        }
-        watchdogRedials++;
-        sys('No video yet \u2014 redialing (' + watchdogRedials + '/' + MAX_WATCHDOG_REDIALS + ')\u2026');
+      if (dialUnavailable) { redialHost(); return; }   // host simply is not there yet
+      // Host is reachable but no video came up: try the next relay level.
+      if (escalateRelay('no video after ' + (DIAL_WATCHDOG_MS / 1000) + 's')) return;
+      // Ladder exhausted: a few plain redials, then offer "Reconnect now".
+      if (watchdogRedials >= MAX_WATCHDOG_REDIALS) {
+        setStatus('Video could not be established');
+        sys('Video could not be established after several attempts. Try "Reconnect now".');
+        els.reconnectBtn.hidden = false;
+        return;
       }
+      watchdogRedials++;
+      sys('No video yet \u2014 redialing (' + watchdogRedials + '/' + MAX_WATCHDOG_REDIALS + ')\u2026');
       redialHost();
     }, DIAL_WATCHDOG_MS);
   }
@@ -1274,7 +1441,44 @@
   function sanitizeRoomName(s) {
     return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
   }
-  function setStatus(t) { els.status.textContent = t; }
+  var connState = 'idle';
+  function simplifyStatus(t) {
+    t = String(t || '');
+    if (/^Connected$/.test(t)) return 'connected';
+    if (/^Idle$/.test(t)) return 'idle';
+    if (/^Waiting/.test(t)) return 'waiting';
+    if (/onnecting|econnecting|recovering|unstable|Signaling disconnected/.test(t)) return 'connecting';
+    return 'offline';
+  }
+  function setStatus(t) {
+    dbg('[status] ' + t);
+    connState = simplifyStatus(t);
+    renderStatus();
+  }
+  var CONN_LABELS = { idle: 'Not connected', waiting: 'Waiting\u2026', connecting: 'Connecting\u2026', connected: 'Connected', offline: 'Not connected' };
+  function trackState(kind) {
+    var t = kind === 'video' ? camTrack : micTrack;
+    if (!t || t.readyState !== 'live') return 'none';
+    return t.enabled ? 'ok' : 'off';
+  }
+  function renderStatus() {
+    var el = els && els.status;
+    if (!el) return;
+    var cam = trackState('video'), mic = trackState('audio');
+    var key = cam + '|' + mic + '|' + connState;
+    if (el._key === key) return;
+    el._key = key;
+    el.innerHTML = '';
+    function part(text, cls) {
+      var sp = document.createElement('span');
+      sp.className = 'stItem ' + cls;
+      sp.textContent = text;
+      el.appendChild(sp);
+    }
+    part(cam === 'ok' ? '\u{1F4F7} Camera' : cam === 'off' ? '\u{1F4F7} Camera off' : '\u{1F4F7} No camera', cam === 'ok' ? 'ok' : cam === 'off' ? 'warn' : 'bad');
+    part(mic === 'ok' ? '\u{1F3A4} Audio' : mic === 'off' ? '\u{1F3A4} Mic off' : '\u{1F3A4} No audio', mic === 'ok' ? 'ok' : mic === 'off' ? 'warn' : 'bad');
+    part('\u25CF ' + CONN_LABELS[connState], connState === 'connected' ? 'ok' : connState === 'offline' ? 'bad' : 'warn');
+  }
   function lobbyError(t) { els.lobbyStatus.textContent = t || ''; }
 
   function addMsg(cls, who, text) {
@@ -1294,7 +1498,19 @@
 
     if (cls !== 'sys') scheduleChatCollapse();
   }
-  function sys(t) { addMsg('sys', null, t); }
+  var HIDDEN_SYS = [
+    /^No host is listening/, /^Video could not be established/, /^No video yet/,
+    /^Lost contact with the signaling/, /^Chat connected/, /^Peer disconnected/,
+    /^Network hiccup/, /^The media connection failed/, /^Could not recover the connection/,
+    /^Reconnect attempt/, /^Host is still not available/, /^No host found/,
+    /^Signaling network error/, /^A WebRTC\/ICE error/, /^Sending \d+ queued/,
+    /^Poor connection/, /^Connection is stable/
+  ];
+  function sys(t) {
+    dbg('[sys] ' + t);
+    for (var i = 0; i < HIDDEN_SYS.length; i++) if (HIDDEN_SYS[i].test(String(t))) return;
+    addMsg('sys', null, t);
+  }
 
   /* ---------------- OS / browser detection ---------------- */
   function detectOS() {
@@ -1414,29 +1630,44 @@
     });
   }
 
-  function renderDiagnosis(types) {
+  function renderDiagnosis(res) {
     els.netDiag.className = 'diag show';
-    if (types.relay) {
+    if (res.ok) {
       els.netDiag.classList.add('good');
-      els.netDiag.innerHTML = '✓ A TURN relay is reachable from this network. Calls should work even through strict corporate/school firewalls or VPNs.';
-    } else if (types.srflx) {
-      els.netDiag.classList.add('warn');
-      els.netDiag.innerHTML = '⚠ STUN works, but no TURN relay could be reached. This is normally fine on home and mobile networks, but the call may fail if you or the other person are behind a strict corporate/school firewall or VPN. Consider adding your own TURN server below.';
+      els.netDiag.textContent = 'Connection: OK';
     } else {
       els.netDiag.classList.add('bad');
-      els.netDiag.innerHTML = '✗ Neither STUN nor TURN could be reached at all. This network (corporate firewall, school network, or some VPNs) is very likely blocking WebRTC outright — a call will probably not work from here. Try mobile data, a different network, or your own TURN/signaling server below.';
+      els.netDiag.textContent = 'Connection: blocked on this network. Try another network or mobile data.';
     }
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'retest';
-    btn.textContent = 'Re-test network';
+    btn.textContent = 'Re-test';
     btn.addEventListener('click', runDiagnostics);
     els.netDiag.appendChild(btn);
   }
+  var diagRun = 0;
   function runDiagnostics() {
+    var my = ++diagRun;
     els.netDiag.className = 'diag show checking';
-    els.netDiag.textContent = 'Checking your network for STUN/TURN connectivity…';
-    diagnoseNetwork(buildIceServers(), 6000).then(renderDiagnosis);
+    els.netDiag.textContent = 'Checking connection\u2026';
+    function probe(t) { return diagnoseNetwork(buildIceServers(t), 5000); }
+    probe(0).then(function (t0) {
+      dbg('[diag] level0 ' + JSON.stringify(t0));
+      if (t0.srflx || t0.relay) return { ok: true, tier: 0 };
+      return probe(1).then(function (t1) {
+        dbg('[diag] level1 ' + JSON.stringify(t1));
+        if (t1.relay) return { ok: true, tier: 1 };
+        return probe(2).then(function (t2) {
+          dbg('[diag] level2 ' + JSON.stringify(t2));
+          return t2.relay ? { ok: true, tier: 2 } : { ok: false, tier: 0 };
+        });
+      });
+    }).then(function (res) {
+      if (my !== diagRun) return;
+      if (res.ok && res.tier > relayTier) relayTier = res.tier;   // start higher on strict networks
+      renderDiagnosis(res);
+    });
   }
 
   /* ---------------- advanced settings panel ---------------- */
@@ -1492,13 +1723,7 @@
     }
   }
   function camLog(msg) {
-    console.log(msg);
-    if (!els.camLog) return;
-    var d = new Date();
-    var t = ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
-    els.camLog.textContent += t + ' ' + msg + '\n';
-    els.camLog.classList.add('show');
-    els.camLog.scrollTop = els.camLog.scrollHeight;
+    console.log('[cam] ' + msg);
   }
   function errText(err) {
     return (err && err.name ? err.name : 'Error') + (err && err.message ? ': ' + err.message : '');
@@ -1984,7 +2209,8 @@
     peerOpenTimer = setTimeout(function () {
       peerOpenTimer = null;
       if (peer && !peer.open && !peer.destroyed) {
-        lobbyError('Could not reach the signaling server after 12 seconds. A firewall, proxy or VPN on this network may be blocking the required WebSocket connection. Try a different network, or set a self-hosted signaling server under "Advanced network settings".');
+        dbg('[signal] no response from signaling server after 12s');
+        lobbyError('Could not connect. Check your internet connection, or try a different network.');
         try { peer.destroy(); } catch (e) {}
         peer = null;
         resetCreateUI();
@@ -2159,6 +2385,7 @@
     call = null; conn = null;
     setTimeout(function () { suppressPeerGone = false; }, 250);
 
+    dialUnavailable = false;
     mediaUp = false;
     conn = peer.connect(targetId, { reliable: true });
     wireConn();
@@ -2438,7 +2665,9 @@
   }
 
   function updateNetBadge(type) {
-    els.netBadge.hidden = false;
+    dbg('[net] selected path: ' + type);
+    els.netBadge.hidden = true;     // path type is not shown to users
+    return;
     if (type === 'relay') {
       els.netBadge.className = 'badge relay';
       els.netBadge.textContent = 'Relayed (TURN)';
@@ -2483,6 +2712,7 @@
       lobbyError('That room name is taken. Try again.');
       resetCreateUI();
     } else if (type === 'peer-unavailable') {
+      if (role === 'guest') dialUnavailable = true;
       if (role === 'guest' && waitingForHost) {
         sys('Host is still not available. Retrying…');
         scheduleHostRetry(2500);
@@ -2515,7 +2745,8 @@
       setStatus('WebRTC error');
       sys('A WebRTC/ICE error occurred — the media path could not be established.');
     } else {
-      lobbyError('Connection error: ' + type);
+      dbg('[error] unhandled PeerJS error type: ' + type);
+      lobbyError('Connection error. Please try again.');
       resetCreateUI();
     }
   }
@@ -3267,7 +3498,7 @@
     els.joinInput.value = '';
     els.roomNameInput.value = '';
     els.lobbyStatus.textContent = '';
-    els.status.textContent = 'Idle';
+    setStatus('Idle');
 
     els.room.classList.remove('active');
     els.lobby.style.display = 'flex';
@@ -3282,7 +3513,55 @@
     try { if (audioCtx) audioCtx.close(); } catch (e) {}
   });
 
+  /* ---------------- Ctrl+Alt+B: copy the hidden debug report ---------------- */
+  function buildDebugReport() {
+    var L = [];
+    function g(fn, d) { try { return fn(); } catch (e) { return d; } }
+    L.push('=== English Class Chat debug report ===');
+    L.push('Time: ' + new Date().toString());
+    L.push('Page: ' + location.protocol + '//' + (location.host || '(local file)') + ' | secureContext=' + window.isSecureContext);
+    L.push('UA: ' + navigator.userAgent);
+    L.push('Online: ' + navigator.onLine + ' | link: ' + g(function () { var c = navigator.connection; return c ? [c.effectiveType, c.downlink + 'Mbps', c.rtt + 'ms'].join('/') : 'n/a'; }, 'n/a'));
+    L.push('Role: ' + role + ' | userRole: ' + userRole + ' | room: ' + roomCode + ' | teacherGuest: ' + isTeacherGuest);
+    L.push('Relay level: ' + relayTier + ' | ICE urls: ' + g(function () {
+      return buildIceServers().map(function (x) { return [].concat(x.urls).join(','); }).join(' ; ');
+    }, '?'));
+    L.push('mediaUp: ' + mediaUp + ' | waitingForHost: ' + waitingForHost + ' | dialUnavailable: ' + dialUnavailable + ' | watchdogRedials: ' + watchdogRedials + ' | connectionAnnounced: ' + connectionAnnounced);
+    L.push('Peer: ' + g(function () { return peer ? 'open=' + peer.open + ' destroyed=' + peer.destroyed + ' disconnected=' + peer.disconnected : 'none'; }, '?'));
+    L.push('Call: ' + g(function () { return call ? 'peer=' + call.peer + ' ice=' + (call.peerConnection ? call.peerConnection.iceConnectionState : 'n/a') : 'none'; }, '?') +
+           ' | Data: ' + g(function () { return conn ? 'open=' + conn.open : 'none'; }, '?'));
+    L.push('Camera: ' + trackState('video') + ' | Audio: ' + trackState('audio') + ' | Connection: ' + connState);
+    L.push('');
+    L.push('--- log ---');
+    L.push(dbgBuf.join('\n'));
+    return L.join('\n');
+  }
+  function dbgToast(msg) {
+    var t = document.getElementById('dbgToast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'dbgToast';
+      t.style.cssText = 'position:fixed;left:8px;bottom:8px;font:11px sans-serif;color:#6e7681;background:rgba(13,17,23,.85);padding:3px 8px;border-radius:4px;z-index:2000;pointer-events:none;opacity:0;transition:opacity .2s';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(t._h);
+    t._h = setTimeout(function () { t.style.opacity = '0'; }, 1200);
+  }
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && (e.code === 'KeyB' || e.key === 'b' || e.key === 'B')) {
+      e.preventDefault();
+      copyToClipboard(buildDebugReport()).then(
+        function () { dbgToast('Copied'); },
+        function () { dbgToast('Copy failed'); }
+      );
+    }
+  });
+  setInterval(renderStatus, 1000);
+
   /* ---------------- startup ---------------- */
+  renderStatus();
   applyUserRoleUI();
   renderHostRooms();
   if (checkCapabilities()) {
