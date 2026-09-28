@@ -59,6 +59,30 @@
   .or { text-align: center; color: #484f58; font-size: 12px; margin: 16px 0; }
   #lobbyStatus { margin-top: 16px; font-size: 12px; color: #f85149; min-height: 16px; }
 
+  /* ---------- Quick rooms (guest) ---------- */
+  .quickRoomsHeader {
+    display: flex; justify-content: space-between; align-items: center;
+    margin: 14px 0 6px;
+  }
+  .quickRoomsHeader .fieldLabel { margin: 0; }
+  .linkBtn {
+    background: none; border: none; color: #58a6ff;
+    font-size: 11px; padding: 0; text-decoration: underline;
+    cursor: pointer;
+  }
+  .quickRoomList {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-bottom: 8px;
+  }
+  .quickRoomBtn {
+    padding: 6px 12px; font-size: 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 1px;
+    background: #21262d; border: 1px solid #30363d; color: #e6edf3;
+    border-radius: 6px; cursor: pointer;
+  }
+  .quickRoomBtn:hover { background: #30363d; }
+
   /* ---------- Room ---------- */
   #room { flex: 1; display: none; flex-direction: column; min-height: 0; }
   #room.active { display: flex; }
@@ -75,6 +99,12 @@
     font-size: 14px; letter-spacing: 3px;
   }
   header .status { margin-left: auto; font-size: 12px; color: #8b949e; }
+  header .hostRoomSelect {
+    font-size: 12px; padding: 5px 8px;
+  }
+  header .smallBtn {
+    font-size: 12px; padding: 5px 10px;
+  }
   main { flex: 1; display: flex; min-height: 0; }
   #videos {
     flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
@@ -217,7 +247,7 @@
   }
   .settingsWarn button:hover { background: #f85149; }
 
-  /* ---------- Help modal ---------- */
+  /* ---------- Modals ---------- */
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,.75);
     display: flex; align-items: center; justify-content: center;
@@ -234,6 +264,7 @@
   .modal h3 { margin: 20px 0 6px; font-size: 14px; color: #58a6ff; }
   .modal h3:first-of-type { margin-top: 12px; }
   .modal p { font-size: 13px; line-height: 1.6; color: #c9d1d9; margin: 8px 0; }
+  .modal .hint { font-size: 12px; color: #8b949e; }
   .modal ol, .modal ul { padding-left: 20px; margin: 6px 0; font-size: 13px; line-height: 1.65; color: #c9d1d9; }
   .modal li { margin-bottom: 5px; }
   .modal code { background: #0d1117; padding: 1px 6px; border-radius: 4px; font-size: 12px; color: #79c0ff; }
@@ -246,6 +277,51 @@
   .modal .closeRow { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
   .helpSection[hidden] { display: none; }
   .helpSection h3 { color: #58a6ff; }
+
+  /* ---------- Rooms edit modal ---------- */
+  .roomsList {
+    display: flex; flex-direction: column; gap: 6px;
+    margin: 12px 0;
+    max-height: 40vh; overflow-y: auto;
+  }
+  .roomRow { display: flex; gap: 6px; }
+  .roomRow input {
+    flex: 1; min-width: 0;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+  .roomRow .roomDelBtn {
+    flex: none; padding: 6px 10px; font-size: 12px;
+  }
+  .addRoomBtn {
+    width: 100%; margin-top: 4px;
+  }
+
+  /* ---------- Waiting room ---------- */
+  .waitingRoom {
+    position: fixed; inset: 0;
+    background: rgba(13,17,23,.94);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; z-index: 900;
+  }
+  .waitingRoom[hidden] { display: none; }
+  .waitingCard {
+    background: #161b22; border: 1px solid #30363d;
+    border-radius: 12px; padding: 28px;
+    max-width: 400px; width: 100%;
+    text-align: center;
+  }
+  .waitingCard h2 { margin: 0 0 12px; font-size: 18px; }
+  .waitingCard p { margin: 8px 0; color: #8b949e; font-size: 14px; line-height: 1.5; }
+  .waitingCard .code { margin: 0 4px; }
+  .waitingCard button { margin-top: 16px; }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid #30363d; border-top-color: #58a6ff;
+    border-radius: 50%; animation: spin 1s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   /* small spinner text */
   .checking { color: #d29922; }
@@ -289,8 +365,10 @@
 
     <label class="fieldLabel" for="roomNameInput" style="margin-top:16px">Room name (optional)</label>
     <div class="row">
-      <input id="roomNameInput" type="text" placeholder="eg. ANTHONY" maxlength="12" autocomplete="off" />
+      <input id="roomNameInput" type="text" list="hostRoomsList" placeholder="eg. ANTHONY" maxlength="12" autocomplete="off" />
+      <button id="editRoomsBtnLobby" type="button" title="Manage saved rooms">Rooms…</button>
     </div>
+    <datalist id="hostRoomsList"></datalist>
     <p class="hint" style="margin:6px 0 12px;font-size:11px;color:#484f58;line-height:1.5">
       Capital letters and numbers only, 3–12 characters. Leave blank for a random code.
     </p>
@@ -301,6 +379,15 @@
       <input id="joinInput" type="text" placeholder="Room name" maxlength="12" autocomplete="off" />
       <button id="joinBtn">Join</button>
     </div>
+
+    <div id="quickRooms" hidden>
+      <div class="quickRoomsHeader">
+        <span class="fieldLabel">Quick connect</span>
+        <button id="clearQuickRoomsBtn" type="button" class="linkBtn">Clear</button>
+      </div>
+      <div id="quickRoomsList" class="quickRoomList"></div>
+    </div>
+
     <p id="lobbyStatus"></p>
 
     <div id="netDiag" class="diag checking">Checking your network for STUN/TURN connectivity…</div>
@@ -344,6 +431,8 @@
     <span>Room</span>
     <span class="code" id="roomCode">------</span>
     <button id="copyBtn" title="Copy room code">Copy</button>
+    <select id="hostRoomSelect" class="hostRoomSelect" hidden title="Switch room"></select>
+    <button id="editRoomsBtnRoom" class="smallBtn" hidden title="Manage saved rooms">Rooms…</button>
     <span class="badge" id="netBadge" hidden>–</span>
     <button id="layoutBtn" hidden>Split view</button>
     <div id="thumbSlot"></div>
@@ -383,6 +472,31 @@
     <button id="reconnectBtn" hidden>Reconnect now</button>
     <button id="hangupBtn" class="danger" style="margin-left:auto">Leave</button>
   </footer>
+</div>
+
+<!-- ============ WAITING ROOM ============ -->
+<div id="waitingRoom" class="waitingRoom" hidden>
+  <div class="waitingCard">
+    <div class="spinner"></div>
+    <h2>Waiting for host</h2>
+    <p>Room <span class="code" id="waitingRoomCode">------</span> isn't open yet.</p>
+    <p style="font-size:12px">We'll connect automatically as soon as the host starts the room. Leave this tab open.</p>
+    <button id="cancelWaitBtn" type="button" class="danger">Cancel</button>
+  </div>
+</div>
+
+<!-- ============ ROOMS EDIT MODAL ============ -->
+<div id="roomsModal" class="modal-overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="roomsTitle">
+    <h2 id="roomsTitle">My rooms</h2>
+    <p class="hint">Save room names you use often. They'll appear as quick-picks in the lobby and as a "Switch room" dropdown while hosting.</p>
+    <div id="roomsList" class="roomsList"></div>
+    <button id="addRoomBtn" type="button" class="addRoomBtn">+ Add room</button>
+    <div class="closeRow">
+      <button id="roomsSaveBtn" class="primary" type="button">Save</button>
+      <button id="roomsCancelBtn" type="button">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <!-- ============ HELP MODAL ============ -->
@@ -483,12 +597,23 @@
     settingsWarn: $('settingsWarn'), showHelpBtn: $('showHelpBtn'),
     helpModal: $('helpModal'), helpCloseBtn: $('helpCloseBtn'), helpRetryBtn: $('helpRetryBtn'),
     helpBrowserName: $('helpBrowserName'),
-    helpIos: $('helpIos'), helpAndroid: $('helpAndroid'), helpGeneric: $('helpGeneric')
+    helpIos: $('helpIos'), helpAndroid: $('helpAndroid'), helpGeneric: $('helpGeneric'),
+    // quick rooms / host rooms
+    quickRooms: $('quickRooms'), quickRoomsList: $('quickRoomsList'), clearQuickRoomsBtn: $('clearQuickRoomsBtn'),
+    hostRoomsList: $('hostRoomsList'),
+    hostRoomSelect: $('hostRoomSelect'),
+    editRoomsBtnLobby: $('editRoomsBtnLobby'), editRoomsBtnRoom: $('editRoomsBtnRoom'),
+    roomsModal: $('roomsModal'), roomsList: $('roomsList'), addRoomBtn: $('addRoomBtn'),
+    roomsSaveBtn: $('roomsSaveBtn'), roomsCancelBtn: $('roomsCancelBtn'),
+    // waiting room
+    waitingRoom: $('waitingRoom'), waitingRoomCode: $('waitingRoomCode'), cancelWaitBtn: $('cancelWaitBtn')
   };
 
   var PREFIX = 'wrtc2-';   // namespaces our room IDs on the public PeerJS cloud
   var LS_KEY = 'wrtc2-advanced-settings';
   var LS_DEVICE_KEY = 'wrtc2-device-prefs';
+  var LS_HOST_ROOMS = 'wrtc2-host-rooms';
+  var LS_GUEST_ROOMS = 'wrtc2-guest-rooms';
 
   /* ---------------- built-in STUN/TURN (public, shared, rate-limited) ---------------- */
   var BUILTIN_STUN = [
@@ -561,9 +686,6 @@
     saveDevicePrefs({ cameraId: selectedCamId || '', microphoneId: selectedMicId || '' });
   }
 
-  // Called when we know which physical device a live track is actually
-  // using — this keeps the saved preference in sync even if the user never
-  // opened the dropdown (e.g. first visit, only one device available).
   function rememberDevice(kind, deviceId) {
     if (!deviceId) return;
     if (kind === 'camera' && deviceId !== selectedCamId) {
@@ -574,6 +696,257 @@
       persistDevicePrefs();
     }
   }
+
+  /* ---------------- saved rooms ---------------- */
+
+  function loadHostRooms() {
+    try { var v = JSON.parse(localStorage.getItem(LS_HOST_ROOMS)); return Array.isArray(v) ? v : []; }
+    catch (e) { return []; }
+  }
+  function saveHostRooms(list) {
+    try { localStorage.setItem(LS_HOST_ROOMS, JSON.stringify(list)); } catch (e) {}
+  }
+  function rememberHostRoom(name) {
+    if (!name) return;
+    var list = loadHostRooms();
+    if (list.indexOf(name) < 0) {
+      list.push(name);
+      saveHostRooms(list);
+      renderHostRooms();
+    }
+  }
+
+  function loadGuestRooms() {
+    try { var v = JSON.parse(localStorage.getItem(LS_GUEST_ROOMS)); return Array.isArray(v) ? v : []; }
+    catch (e) { return []; }
+  }
+  function saveGuestRooms(list) {
+    try { localStorage.setItem(LS_GUEST_ROOMS, JSON.stringify(list)); } catch (e) {}
+  }
+  function rememberGuestRoom(name) {
+    if (!name) return;
+    var list = loadGuestRooms();
+    var idx = list.indexOf(name);
+    if (idx >= 0) list.splice(idx, 1);
+    list.unshift(name);
+    list = list.slice(0, 8);
+    saveGuestRooms(list);
+    renderQuickRooms();
+  }
+
+  function renderHostRooms() {
+    var list = loadHostRooms();
+    // datalist for lobby input
+    if (els.hostRoomsList) {
+      els.hostRoomsList.innerHTML = '';
+      list.forEach(function (name) {
+        var o = document.createElement('option');
+        o.value = name;
+        els.hostRoomsList.appendChild(o);
+      });
+    }
+    // in-room select
+    var sel = els.hostRoomSelect;
+    if (sel) {
+      sel.innerHTML = '';
+      var opts = list.slice();
+      if (roomCode && opts.indexOf(roomCode) < 0) opts.push(roomCode);
+      opts.forEach(function (name) {
+        var o = document.createElement('option');
+        o.value = name;
+        o.textContent = name + (name === roomCode ? ' (current)' : '');
+        sel.appendChild(o);
+      });
+      if (roomCode) sel.value = roomCode;
+      // Show in-room select only for host with at least one saved room
+      sel.hidden = !(role === 'host' && list.length > 0 && roomCode);
+    }
+    if (els.editRoomsBtnRoom) {
+      els.editRoomsBtnRoom.hidden = !(role === 'host' && roomCode);
+    }
+  }
+
+  function renderQuickRooms() {
+    var list = loadGuestRooms();
+    if (!els.quickRooms) return;
+    els.quickRooms.hidden = list.length === 0;
+    els.quickRoomsList.innerHTML = '';
+    list.forEach(function (name) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'quickRoomBtn';
+      b.textContent = name;
+      b.addEventListener('click', function () {
+        els.joinInput.value = name;
+        els.joinBtn.click();
+      });
+      els.quickRoomsList.appendChild(b);
+    });
+  }
+
+  els.clearQuickRoomsBtn.addEventListener('click', function () {
+    saveGuestRooms([]);
+    renderQuickRooms();
+  });
+
+  /* ---------------- rooms edit modal ---------------- */
+
+  function openRoomsModal() {
+    var list = loadHostRooms();
+    renderRoomsModalList(list);
+    els.roomsModal.hidden = false;
+  }
+  function closeRoomsModal() {
+    els.roomsModal.hidden = true;
+  }
+
+  function renderRoomsModalList(rooms) {
+    els.roomsList.innerHTML = '';
+    if (rooms.length === 0) {
+      var empty = document.createElement('p');
+      empty.className = 'hint';
+      empty.style.margin = '0';
+      empty.textContent = 'No saved rooms yet. Add one below.';
+      els.roomsList.appendChild(empty);
+      return;
+    }
+    rooms.forEach(function (name) { addRoomRow(name); });
+  }
+
+  function addRoomRow(name) {
+    var p = els.roomsList.querySelector('p');
+    if (p) p.remove();
+
+    var row = document.createElement('div');
+    row.className = 'roomRow';
+
+    var inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = name || '';
+    inp.maxLength = 12;
+    inp.placeholder = 'ROOM NAME';
+    inp.addEventListener('input', function () {
+      inp.value = sanitizeRoomName(inp.value);
+    });
+
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'danger roomDelBtn';
+    del.textContent = 'Delete';
+    del.addEventListener('click', function () { row.remove(); });
+
+    row.appendChild(inp);
+    row.appendChild(del);
+    els.roomsList.appendChild(row);
+  }
+
+  els.addRoomBtn.addEventListener('click', function () {
+    addRoomRow('');
+    var inputs = els.roomsList.querySelectorAll('input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  });
+
+  els.roomsSaveBtn.addEventListener('click', function () {
+    var inputs = els.roomsList.querySelectorAll('input');
+    var list = [];
+    Array.prototype.forEach.call(inputs, function (inp) {
+      var v = sanitizeRoomName(inp.value);
+      if (v && list.indexOf(v) < 0) list.push(v);
+    });
+    saveHostRooms(list);
+    renderHostRooms();
+    closeRoomsModal();
+  });
+
+  els.roomsCancelBtn.addEventListener('click', closeRoomsModal);
+  els.roomsModal.addEventListener('click', function (e) {
+    if (e.target === els.roomsModal) closeRoomsModal();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if (!els.roomsModal.hidden) closeRoomsModal();
+      else if (!els.helpModal.hidden) closeHelpModal();
+    }
+  });
+
+  els.editRoomsBtnLobby.addEventListener('click', openRoomsModal);
+  if (els.editRoomsBtnRoom) els.editRoomsBtnRoom.addEventListener('click', openRoomsModal);
+
+  /* ---------------- connection chime + announcement ---------------- */
+
+  var connectionAnnounced = false;
+
+  function playConnectedChime() {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      var ctx = new Ctx();
+      if (ctx.state === 'suspended') ctx.resume();
+      var t0 = ctx.currentTime + 0.03;
+      // Short rising arpeggio: C5, E5, G5
+      var notes = [523.25, 659.25, 783.99];
+      notes.forEach(function (freq, i) {
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        var start = t0 + i * 0.12;
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.2, start + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.24);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.26);
+      });
+      setTimeout(function () { try { ctx.close(); } catch (e) {} }, 1200);
+    } catch (e) { console.warn('chime failed', e); }
+  }
+
+  function announceConnection() {
+    if (connectionAnnounced) return;
+    connectionAnnounced = true;
+    exitWaitingRoom();
+    playConnectedChime();
+    setStatus('Connected');
+  }
+
+  /* ---------------- waiting room ---------------- */
+
+  var waitingForHost = false;
+  var waitForHostTimer = null;
+
+  function enterWaitingRoom() {
+    if (waitingForHost) return;
+    waitingForHost = true;
+    els.waitingRoomCode.textContent = roomCode;
+    els.waitingRoom.hidden = false;
+    setStatus('Waiting for host…');
+    sys('No host is listening on "' + roomCode + '" yet. Waiting…');
+    scheduleHostRetry(2500);
+  }
+
+  function exitWaitingRoom() {
+    if (!waitingForHost) return;
+    waitingForHost = false;
+    if (waitForHostTimer) { clearTimeout(waitForHostTimer); waitForHostTimer = null; }
+    els.waitingRoom.hidden = true;
+  }
+
+  function scheduleHostRetry(delay) {
+    if (waitForHostTimer) return;
+    waitForHostTimer = setTimeout(function () {
+      waitForHostTimer = null;
+      if (!waitingForHost) return;
+      if (!peer || peer.destroyed) return;
+      connectToHost();
+    }, delay);
+  }
+
+  els.cancelWaitBtn.addEventListener('click', function () {
+    exitWaitingRoom();
+    leaveRoom();
+  });
 
   /* ---------------- session state ---------------- */
   var peer = null;
@@ -602,8 +975,6 @@
     return s;
   }
 
-  // Force A–Z + 0–9 only, uppercased. Used for both room names (host) and
-  // join codes (guest) so a peer typing "anthony" is matched to "ANTHONY".
   function sanitizeRoomName(s) {
     return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
   }
@@ -673,16 +1044,9 @@
   els.helpModal.addEventListener('click', function (e) {
     if (e.target === els.helpModal) closeHelpModal();
   });
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && !els.helpModal.hidden) closeHelpModal();
-  });
 
-  function showSettingsWarning() {
-    els.settingsWarn.classList.add('show');
-  }
-  function hideSettingsWarning() {
-    els.settingsWarn.classList.remove('show');
-  }
+  function showSettingsWarning() { els.settingsWarn.classList.add('show'); }
+  function hideSettingsWarning() { els.settingsWarn.classList.remove('show'); }
 
   function isPermissionError(err) {
     if (!err) return false;
@@ -992,8 +1356,6 @@
       camTrack = stream.getVideoTracks()[0];
       micTrack = stream.getAudioTracks()[0];
 
-      // Remember the physical devices that actually got used, so the next
-      // session defaults to them (persisted via localStorage).
       var camSettings = (camTrack && camTrack.getSettings) ? camTrack.getSettings() : {};
       if (camSettings.deviceId) rememberDevice('camera', camSettings.deviceId);
       var micSettings = (micTrack && micTrack.getSettings) ? micTrack.getSettings() : {};
@@ -1017,7 +1379,6 @@
 
   function populateSelect(selectEl, devices, preferredId, currentTrack) {
     if (!selectEl) return;
-    // Which device is really in use right now?
     var liveId = '';
     if (currentTrack && currentTrack.getSettings) {
       liveId = currentTrack.getSettings().deviceId || '';
@@ -1045,7 +1406,7 @@
     navigator.mediaDevices.enumerateDevices().then(function (devices) {
       var cams = devices.filter(function (d) { return d.kind === 'videoinput'; });
       var mics = devices.filter(function (d) { return d.kind === 'audioinput'; });
-      videoDevices = cams;                      // keep the flip button in sync
+      videoDevices = cams;
       els.flipBtn.hidden = cams.length < 2;
       populateSelect(els.cameraSelect, cams, selectedCamId, camTrack);
       populateSelect(els.micSelect, mics, selectedMicId, micTrack);
@@ -1067,7 +1428,6 @@
       camLog('FAIL switch camera -> ' + errText(err));
       sys('Could not switch camera: ' + mediaErrorMessage(err));
       els.cameraSelect.disabled = false;
-      // Snap the dropdown back to whatever's still live
       populateDeviceSelectors();
     });
   }
@@ -1122,977 +1482,4 @@
     switchMicrophone(id);
   });
 
-  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
-    navigator.mediaDevices.addEventListener('devicechange', function () {
-      if (localStream) populateDeviceSelectors();
-    });
-  }
-
-  /* ---------------- request camera/mic (lobby pre-flight) ---------------- */
-
-  function showMicState() {
-    if (micTrack) {
-      els.mediaStatus.textContent = '\u2713 Camera & microphone ready.';
-      els.enableMediaBtn.hidden = true;
-      hideSettingsWarning();
-    } else {
-      els.mediaStatus.textContent = 'Camera ready, but the microphone is blocked or unavailable \u2014 others won\'t hear you. Tap "Retry microphone" for help.';
-      els.enableMediaBtn.textContent = 'Retry microphone';
-      els.enableMediaBtn.disabled = false;
-      els.enableMediaBtn.hidden = false;
-    }
-  }
-
-  function requestMedia() {
-    els.enableMediaBtn.textContent = 'Enable camera & microphone';
-    els.enableMediaBtn.disabled = true;
-    els.mediaStatus.textContent = 'Requesting camera & microphone access\u2026';
-    return getMedia().then(function () {
-      showMicState();
-      if (localStream && !micTrack) showSettingsWarning();
-    }, function (err) {
-      els.enableMediaBtn.disabled = false;
-      els.enableMediaBtn.hidden = false;
-      els.mediaStatus.textContent = err.message;
-      maybeShowSettingsHelp(err);
-      throw err;
-    });
-  }
-
-  function retryMic() {
-    els.enableMediaBtn.disabled = true;
-    els.mediaStatus.textContent = 'Requesting microphone\u2026';
-    var tries = [
-      selectedMicId ? { deviceId: { exact: selectedMicId }, echoCancellation: true, noiseSuppression: true } : null,
-      { echoCancellation: true, noiseSuppression: true },
-      true
-    ].filter(Boolean);
-    var i = 0;
-    function next() {
-      var a = tries[i++];
-      return navigator.mediaDevices.getUserMedia({ audio: a, video: false }).then(function (s) {
-        var t = s.getAudioTracks()[0];
-        camLog('OK microphone retry');
-        localStream.addTrack(t);
-        micTrack = t;
-        micTrack.enabled = micOn;
-        var st = (t.getSettings && t.getSettings()) || {};
-        if (st.deviceId) rememberDevice('mic', st.deviceId);
-        showMicState();
-        populateDeviceSelectors();
-      }, function (err) {
-        camLog('FAIL microphone retry -> ' + errText(err));
-        if (i < tries.length) return next();
-        showMicState();
-        els.mediaStatus.textContent = mediaErrorMessage(err).replace('camera/microphone', 'microphone') +
-          ' (' + (err && err.name ? err.name : 'error') + ')';
-        maybeShowSettingsHelp(err);
-      });
-    }
-    return next();
-  }
-
-  els.enableMediaBtn.addEventListener('click', function () {
-    if (localStream && !micTrack) retryMic();
-    else requestMedia().catch(function () {});
-  });
-
-  /* ---------------- switch camera (footer flip button) ---------------- */
-
-  function replaceVideoTrack(newTrack) {
-    if (camTrack) {
-      try { localStream.removeTrack(camTrack); } catch (e) {}
-      try { camTrack.stop(); } catch (e) {}
-    }
-    localStream.addTrack(newTrack);
-    newTrack.enabled = camOn;
-    camTrack = newTrack;
-    els.localVideo.srcObject = localStream;
-    if (els.lobbyPreview) els.lobbyPreview.srcObject = localStream;
-    if (call && call.peerConnection) {
-      var sender = call.peerConnection.getSenders().filter(function (s) {
-        return s.track && s.track.kind === 'video';
-      })[0];
-      if (sender) { try { sender.replaceTrack(camTrack); } catch (e) {} }
-    }
-  }
-
-  function flipCamera() {
-    if (videoDevices.length < 2 || !camTrack) return;
-    var settings = camTrack.getSettings ? camTrack.getSettings() : {};
-    var idx = videoDevices.findIndex(function (d) { return d.deviceId === settings.deviceId; });
-    var next = videoDevices[(idx + 1) % videoDevices.length];
-    if (!next) return;
-    selectedCamId = next.deviceId;
-    persistDevicePrefs();
-    if (els.cameraSelect) els.cameraSelect.value = next.deviceId;
-    switchCamera(next.deviceId);
-  }
-
-  els.flipBtn.addEventListener('click', flipCamera);
-
-  /* ---------------- lobby actions ---------------- */
-
-  els.createBtn.addEventListener('click', function () {
-    var custom = sanitizeRoomName(els.roomNameInput.value);
-    if (custom && custom.length < 3) {
-      lobbyError('Room name must be at least 3 letters/numbers.');
-      els.roomNameInput.focus();
-      return;
-    }
-    lobbyError('');
-    els.createBtn.disabled = true;
-    els.joinBtn.disabled = true;
-    els.createBtn.textContent = custom ? 'Checking availability…' : 'Creating…';
-    role = 'host';
-    roomCode = custom || randomCode();
-    usingCustomName = !!custom;
-    bootPeer(PREFIX + roomCode);
-  });
-
-  els.joinBtn.addEventListener('click', function () {
-    // Always upper-case + strip anything that isn't A–Z or 0–9, so a peer
-    // typing "anthony" is matched to the host's "ANTHONY".
-    var code = sanitizeRoomName(els.joinInput.value);
-    if (code.length < 3) { lobbyError('Enter a valid room name (3+ letters/numbers).'); return; }
-    lobbyError('');
-    els.createBtn.disabled = true;
-    els.joinBtn.disabled = true;
-    role = 'guest';
-    roomCode = code;
-    usingCustomName = false;
-    bootPeer(null);
-  });
-
-  els.joinInput.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') els.joinBtn.click();
-  });
-
-  // Live upper-case + sanitise as the user types, on both inputs.
-  els.roomNameInput.addEventListener('input', function () {
-    var cleaned = sanitizeRoomName(els.roomNameInput.value);
-    if (cleaned !== els.roomNameInput.value) els.roomNameInput.value = cleaned;
-  });
-  els.joinInput.addEventListener('input', function () {
-    var cleaned = sanitizeRoomName(els.joinInput.value);
-    if (cleaned !== els.joinInput.value) els.joinInput.value = cleaned;
-  });
-
-  function resetCreateUI() {
-    els.createBtn.disabled = false;
-    els.joinBtn.disabled = false;
-    els.createBtn.textContent = 'Create a room';
-  }
-
-  function bootPeer(id) {
-    getMedia().then(function () {
-      var opts = buildPeerOpts();
-      peer = id ? new Peer(id, opts) : new Peer(opts);
-
-      peerOpenTimer = setTimeout(function () {
-        peerOpenTimer = null;
-        if (peer && !peer.open && !peer.destroyed) {
-          lobbyError('Could not reach the signaling server after 12 seconds. A firewall, proxy or VPN on this network may be blocking the required WebSocket connection. Try a different network, or set a self-hosted signaling server under "Advanced network settings".');
-          try { peer.destroy(); } catch (e) {}
-          peer = null;
-          resetCreateUI();
-        }
-      }, 12000);
-
-      peer.on('open', function () {
-        if (peerOpenTimer) { clearTimeout(peerOpenTimer); peerOpenTimer = null; }
-        showRoom();
-        if (role === 'host') {
-          setStatus('Waiting for peer…');
-          sys('Share code "' + roomCode + '" with the other person.');
-        } else {
-          setStatus('Connecting…');
-          connectToHost();
-        }
-      });
-
-      peer.on('call', handleIncomingCall);
-      peer.on('connection', handleIncomingConn);
-      peer.on('error', handlePeerError);
-      peer.on('disconnected', function () {
-        if (!peer || peer.destroyed) return;
-        setStatus('Signaling disconnected — reconnecting…');
-        sys('Lost contact with the signaling server. Reconnecting…');
-        try { peer.reconnect(); } catch (e) {}
-      });
-    }).catch(function (err) {
-      console.error(err);
-      lobbyError(err.message);
-      resetCreateUI();
-      peer = null;
-    });
-  }
-
-  function showRoom() {
-    els.lobby.style.display = 'none';
-    els.room.classList.add('active');
-    els.roomCode.textContent = roomCode;
-    els.camBtn.disabled = false;
-    els.micBtn.disabled = false;
-    els.flipBtn.disabled = videoDevices.length < 2;
-    els.qualityBtn.disabled = false;
-    els.shareBtn.disabled = false;
-  }
-
-  /* ---------------- host: incoming call / data ---------------- */
-
-  function handleIncomingCall(incoming) {
-    if (call) { try { incoming.close(); } catch (e) {} return; }
-    call = incoming;
-    call.answer(localStream);
-    wireCall();
-  }
-
-  function handleIncomingConn(c) {
-    if (conn && conn.open) { try { c.close(); } catch (e) {} return; }
-    conn = c;
-    wireConn();
-  }
-
-  /* ---------------- guest: dial the host ---------------- */
-
-  function connectToHost() {
-    var targetId = PREFIX + roomCode;
-    conn = peer.connect(targetId, { reliable: true });
-    wireConn();
-    call = peer.call(targetId, localStream);
-    wireCall();
-  }
-
-  /* ---------------- call + data plumbing ---------------- */
-
-  function wireCall() {
-    remoteStream = new MediaStream();
-    els.remoteVideo.srcObject = remoteStream;
-
-    call.on('stream', function (stream) {
-      stream.getTracks().forEach(function (t) {
-        var already = remoteStream.getTracks().some(function (x) { return x.id === t.id; });
-        if (!already) remoteStream.addTrack(t);
-      });
-      els.remoteVideo.play().catch(function () {});
-      setStatus('Connected');
-      autoLevel = 0; goodChecks = 0;
-      applyQuality();
-      reconnectAttempts = 0;
-      els.reconnectBtn.hidden = true;
-      startStatsMonitor();
-    });
-
-    call.on('close', onPeerGone);
-    call.on('error', function (err) { console.error('Call error', err); });
-
-    if (call.peerConnection) {
-      call.peerConnection.addEventListener('iceconnectionstatechange', function () {
-        handleIceState(call.peerConnection.iceConnectionState);
-      });
-    }
-  }
-
-  function wireConn() {
-    conn.on('open', function () {
-      els.chatInput.disabled = false;
-      els.sendBtn.disabled = false;
-      els.attachBtn.disabled = false;
-      sys('Chat connected.');
-      setStatus('Connected');
-      if (role === 'host') {
-        els.muteGuestBtn.hidden = false;
-        els.muteGuestBtn.disabled = false;
-        if (peerMutedByHost) conn.send({ type: 'host-mute', muted: true });
-      }
-      sendMicState();
-    });
-
-    conn.on('data', function (data) {
-      if (!data) return;
-      if (data.type === 'chat') addMsg('them', 'Peer', String(data.text));
-      else if (data.type === 'host-mute') handleHostMute(!!data.muted);
-      else if (data.type === 'mic-state') els.peerLabel.textContent = 'Peer' + (data.on ? '' : ' \u{1F507}');
-      else handleFileMessage(data);
-    });
-
-    conn.on('close', onPeerGone);
-    conn.on('error', function (err) { console.error('Data error', err); });
-
-    if (conn.peerConnection) {
-      conn.peerConnection.addEventListener('iceconnectionstatechange', function () {
-        handleIceState(conn.peerConnection.iceConnectionState);
-      });
-    }
-  }
-
-  var suppressPeerGone = false;
-
-  function onPeerGone() {
-    if (suppressPeerGone) return;
-    if (!roomCode) return;
-    stopStatsMonitor();
-    incoming = {};
-    els.muteGuestBtn.disabled = true;
-    els.peerLabel.textContent = 'Peer';
-    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-    setStatus('Peer left');
-    sys('Peer disconnected.');
-    els.chatInput.disabled = true;
-    els.sendBtn.disabled = true;
-    els.attachBtn.disabled = true;
-    els.netBadge.hidden = true;
-    els.reconnectBtn.hidden = true;
-    els.remoteVideo.srcObject = null;
-    remoteStream = null;
-    call = null;
-    conn = null;
-  }
-
-  /* ---------------- ICE monitoring, live relay/direct badge, auto-reconnect ---------------- */
-
-  var reconnectAttempts = 0;
-  var reconnectTimer = null;
-  var MAX_RECONNECT = 5;
-  var statsInterval = null;
-
-  function handleIceState(state) {
-    console.log('ICE state:', state);
-    if (state === 'disconnected') {
-      setStatus('Connection unstable — recovering…');
-      sys('Network hiccup detected. Trying to recover the connection…');
-      scheduleReconnect(4000);
-    } else if (state === 'failed') {
-      setStatus('Connection failed');
-      sys('The media connection failed. This usually means a firewall or NAT is blocking the path even via TURN. Retrying…');
-      scheduleReconnect(300);
-    } else if (state === 'connected' || state === 'completed') {
-      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-      reconnectAttempts = 0;
-      els.reconnectBtn.hidden = true;
-    }
-  }
-
-  function scheduleReconnect(delay) {
-    if (reconnectTimer) return;
-    if (reconnectAttempts >= MAX_RECONNECT) {
-      setStatus('Connection lost');
-      sys('Could not recover the connection after several attempts — this points to a persistent firewall/network problem on one side. Check your network (and the other person\'s), or try "Reconnect now".');
-      els.reconnectBtn.hidden = false;
-      return;
-    }
-    reconnectTimer = setTimeout(function () {
-      reconnectTimer = null;
-      reconnectAttempts++;
-      attemptReconnect();
-    }, delay);
-  }
-
-  function attemptReconnect() {
-    if (!roomCode || !peer || peer.destroyed) return;
-    sys('Reconnect attempt ' + reconnectAttempts + ' of ' + MAX_RECONNECT + '…');
-    stopStatsMonitor();
-    els.netBadge.hidden = true;
-    suppressPeerGone = true;
-    try { if (call) call.close(); } catch (e) {}
-    try { if (conn) conn.close(); } catch (e) {}
-    call = null; conn = null;
-    setTimeout(function () { suppressPeerGone = false; }, 250);
-
-    if (role === 'guest') {
-      setStatus('Reconnecting…');
-      connectToHost();
-    } else {
-      setStatus('Waiting for peer to reconnect…');
-      sys('Waiting for the other person\'s app to redial…');
-    }
-  }
-
-  els.reconnectBtn.addEventListener('click', function () {
-    reconnectAttempts = 0;
-    els.reconnectBtn.hidden = true;
-    attemptReconnect();
-  });
-
-  function startStatsMonitor() {
-    stopStatsMonitor();
-    statsInterval = setInterval(function () {
-      if (!call || !call.peerConnection) return;
-      call.peerConnection.getStats(null).then(function (stats) {
-        var pairId = null;
-        stats.forEach(function (r) {
-          if (r.type === 'transport' && r.selectedCandidatePairId) pairId = r.selectedCandidatePairId;
-        });
-        if (!pairId) {
-          stats.forEach(function (r) {
-            if (r.type === 'candidate-pair' && r.state === 'succeeded' && (r.nominated || pairId === null)) pairId = r.id;
-          });
-        }
-        var localType = null;
-        if (pairId) {
-          stats.forEach(function (r) {
-            if (r.id === pairId && r.type === 'candidate-pair') {
-              stats.forEach(function (r2) {
-                if (r2.id === r.localCandidateId) localType = r2.candidateType;
-              });
-            }
-          });
-        }
-        updateNetBadge(localType);
-        if (qualityMode === 'auto') autoAdjust(stats, pairId);
-      }).catch(function () {});
-    }, 3000);
-  }
-
-  function stopStatsMonitor() {
-    if (statsInterval) { clearInterval(statsInterval); statsInterval = null; }
-  }
-
-  function updateNetBadge(type) {
-    els.netBadge.hidden = false;
-    if (type === 'relay') {
-      els.netBadge.className = 'badge relay';
-      els.netBadge.textContent = 'Relayed (TURN)';
-    } else if (type === 'srflx' || type === 'host' || type === 'prflx') {
-      els.netBadge.className = 'badge direct';
-      els.netBadge.textContent = 'Direct';
-    } else {
-      els.netBadge.className = 'badge';
-      els.netBadge.textContent = '…';
-    }
-  }
-
-  /* ---------------- PeerJS errors ---------------- */
-
-  function handlePeerError(err) {
-    console.error('PeerJS error', err);
-    var type = err && err.type ? err.type : 'unknown';
-
-    if (type === 'unavailable-id') {
-      if (peerOpenTimer) { clearTimeout(peerOpenTimer); peerOpenTimer = null; }
-      try { peer.destroy(); } catch (e) {}
-      peer = null;
-
-      if (role === 'host') {
-        if (usingCustomName) {
-          lobbyError('The room name "' + roomCode + '" is already in use. Please choose a different name.');
-          els.roomNameInput.focus();
-          els.roomNameInput.select();
-          resetCreateUI();
-          return;
-        }
-        roomCode = randomCode();
-        bootPeer(PREFIX + roomCode);
-        return;
-      }
-      lobbyError('That room name is taken. Try again.');
-      resetCreateUI();
-    } else if (type === 'peer-unavailable') {
-      setStatus('Room not found');
-      sys('No host found for code "' + roomCode + '".');
-      lobbyError('Room "' + roomCode + '" not found. Check the name and try again.');
-      leaveRoom();
-    } else if (type === 'network' || type === 'server-error' || type === 'socket-error') {
-      setStatus('Network error');
-      sys('Signaling network error — this can happen when a firewall or proxy blocks WebSocket traffic. Retrying…');
-    } else if (type === 'browser-incompatible') {
-      lobbyError('Your browser does not support WebRTC.');
-      resetCreateUI();
-    } else if (type === 'webrtc') {
-      setStatus('WebRTC error');
-      sys('A WebRTC/ICE error occurred — this often means the media path (direct or via TURN) could not be established, which usually points to a restrictive firewall on one side.');
-    } else {
-      lobbyError('Connection error: ' + type);
-      resetCreateUI();
-    }
-  }
-
-  /* ---------------- chat ---------------- */
-
-  function sendChat() {
-    var text = els.chatInput.value.trim();
-    if (!text) return;
-    if (!conn || !conn.open) { sys('Chat not ready.'); return; }
-    conn.send({ type: 'chat', text: text });
-    addMsg('me', 'You', text);
-    els.chatInput.value = '';
-  }
-  els.sendBtn.addEventListener('click', sendChat);
-  els.chatInput.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') sendChat();
-  });
-
-  /* ---------------- file attachments ---------------- */
-
-  var MAX_FILE = 50 * 1024 * 1024;
-  var CHUNK = 16 * 1024;
-  var incoming = {};
-  var fileQueue = Promise.resolve();
-
-  function fmtSize(n) {
-    if (n < 1024) return n + ' B';
-    if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
-    return (n / 1048576).toFixed(1) + ' MB';
-  }
-
-  function addFileMsg(cls, who, name, size, note) {
-    var row = document.createElement('div');
-    row.className = 'msg ' + cls;
-    var b = document.createElement('b');
-    b.textContent = who + ': ';
-    row.appendChild(b);
-    var label = document.createElement('span');
-    label.textContent = '\u{1F4CE} ' + name + ' (' + fmtSize(size) + ') ' + (note || '');
-    row.appendChild(label);
-    var bar = document.createElement('progress');
-    bar.max = 1; bar.value = 0;
-    row.appendChild(bar);
-    els.chatLog.appendChild(row);
-    els.chatLog.scrollTop = els.chatLog.scrollHeight;
-    return {
-      progress: function (f) { bar.value = f; },
-      note: function (t) { label.textContent = '\u{1F4CE} ' + name + ' (' + fmtSize(size) + ') ' + t; bar.remove(); },
-      link: function (blob, mime) {
-        bar.remove();
-        var url = URL.createObjectURL(blob);
-        label.textContent = '';
-        var a = document.createElement('a');
-        a.href = url; a.download = name;
-        a.textContent = '\u{1F4CE} ' + name + ' (' + fmtSize(size) + ') \u2014 download';
-        label.appendChild(a);
-        if (/^image\/(png|jpeg|gif|webp)$/.test(mime) && size < 10 * 1048576) {
-          var img = document.createElement('img');
-          img.className = 'thumb'; img.src = url; img.alt = name;
-          row.appendChild(img);
-        }
-        els.chatLog.scrollTop = els.chatLog.scrollHeight;
-      }
-    };
-  }
-
-  function sendFile(file) {
-    return new Promise(function (resolve) {
-      if (!conn || !conn.open) { sys('Chat not ready — file not sent.'); return resolve(); }
-      if (file.size > MAX_FILE) { sys('"' + file.name + '" is larger than 50 MB and was not sent.'); return resolve(); }
-      var id = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-      var ui = addFileMsg('me', 'You', file.name, file.size, '\u2014 sending\u2026');
-      var offset = 0, seq = 0;
-      conn.send({ type: 'file-start', id: id, name: file.name, size: file.size, mime: file.type || 'application/octet-stream' });
-      function pump() {
-        if (!conn || !conn.open) { ui.note('\u2014 interrupted'); return resolve(); }
-        var dc = conn.dataChannel;
-        if (dc && dc.bufferedAmount > 1048576) { setTimeout(pump, 60); return; }
-        file.slice(offset, offset + CHUNK).arrayBuffer().then(function (buf) {
-          conn.send({ type: 'file-chunk', id: id, seq: seq++, data: buf });
-          offset += buf.byteLength;
-          ui.progress(offset / file.size);
-          if (offset < file.size) pump();
-          else {
-            conn.send({ type: 'file-end', id: id });
-            ui.note('\u2014 sent \u2713');
-            resolve();
-          }
-        }).catch(function () { ui.note('\u2014 failed'); resolve(); });
-      }
-      if (file.size === 0) { conn.send({ type: 'file-end', id: id }); ui.note('\u2014 sent \u2713'); return resolve(); }
-      pump();
-    });
-  }
-
-  function handleFileMessage(d) {
-    if (d.type === 'file-start') {
-      var name = String(d.name || 'file').slice(0, 120);
-      incoming[d.id] = { name: name, size: +d.size || 0, mime: String(d.mime || ''), chunks: [], got: 0,
-        ui: addFileMsg('them', 'Peer', name, +d.size || 0, '\u2014 receiving\u2026') };
-    } else if (d.type === 'file-chunk') {
-      var f = incoming[d.id];
-      if (!f || !d.data) return;
-      f.chunks[d.seq] = d.data;
-      f.got += d.data.byteLength || d.data.size || 0;
-      if (f.size) f.ui.progress(Math.min(1, f.got / f.size));
-    } else if (d.type === 'file-end') {
-      var g = incoming[d.id];
-      if (!g) return;
-      delete incoming[d.id];
-      g.ui.link(new Blob(g.chunks, { type: g.mime }), g.mime);
-    }
-  }
-
-  els.attachBtn.addEventListener('click', function () { els.fileInput.click(); });
-  els.fileInput.addEventListener('change', function () {
-    Array.prototype.slice.call(els.fileInput.files).forEach(function (f) {
-      fileQueue = fileQueue.then(function () { return sendFile(f); });
-    });
-    els.fileInput.value = '';
-  });
-
-  /* ---------------- video quality (manual + auto) ---------------- */
-
-  var LEVELS = ['high', 'medium', 'low', 'minimal'];
-  var QUALITY = {
-    high:    { maxBitrate: 1500000, scale: 1,   fps: 30 },
-    medium:  { maxBitrate: 600000,  scale: 1.5, fps: 24 },
-    low:     { maxBitrate: 250000,  scale: 2.5, fps: 15 },
-    minimal: { maxBitrate: 100000,  scale: 4,   fps: 10 }
-  };
-  var MODES = ['auto', 'high', 'medium', 'low'];
-  var qualityMode = 'auto';
-  var autoLevel = 0;
-  var goodChecks = 0;
-
-  function currentLevel() {
-    return qualityMode === 'auto' ? LEVELS[autoLevel] : qualityMode;
-  }
-
-  function updateQualityBtn() {
-    var lv = currentLevel();
-    var cap = lv.charAt(0).toUpperCase() + lv.slice(1);
-    els.qualityBtn.textContent = qualityMode === 'auto' ? 'Quality: Auto (' + cap + ')' : 'Quality: ' + cap;
-  }
-
-  function applyQuality() {
-    updateQualityBtn();
-    if (!call || !call.peerConnection) return;
-    var sender = call.peerConnection.getSenders().filter(function (s) {
-      return s.track && s.track.kind === 'video';
-    })[0];
-    if (!sender || !sender.getParameters) return;
-    var q = QUALITY[currentLevel()];
-    var params = sender.getParameters();
-    if (!params.encodings || !params.encodings.length) params.encodings = [{}];
-    params.encodings[0].maxBitrate = q.maxBitrate;
-    params.encodings[0].maxFramerate = q.fps;
-    params.encodings[0].scaleResolutionDownBy = q.scale;
-    sender.setParameters(params).catch(function () {
-      var p2 = sender.getParameters();
-      if (!p2.encodings || !p2.encodings.length) p2.encodings = [{}];
-      p2.encodings[0].maxBitrate = q.maxBitrate;
-      sender.setParameters(p2).catch(function () {});
-    });
-  }
-
-  function autoAdjust(stats, pairId) {
-    var loss = null, rtt = null, avail = null;
-    stats.forEach(function (r) {
-      if (r.type === 'remote-inbound-rtp' && (r.kind === 'video' || r.mediaType === 'video')) {
-        if (typeof r.fractionLost === 'number') loss = r.fractionLost;
-        if (typeof r.roundTripTime === 'number') rtt = r.roundTripTime;
-      }
-      if (pairId && r.id === pairId && typeof r.availableOutgoingBitrate === 'number') avail = r.availableOutgoingBitrate;
-    });
-    var cur = QUALITY[LEVELS[autoLevel]];
-    var bad = (loss !== null && loss > 0.08) || (rtt !== null && rtt > 0.5) ||
-              (avail !== null && avail < cur.maxBitrate * 0.7);
-    var nextUp = autoLevel > 0 ? QUALITY[LEVELS[autoLevel - 1]] : null;
-    var good = (loss === null || loss < 0.02) && (rtt === null || rtt < 0.25) &&
-               (avail === null || !nextUp || avail > nextUp.maxBitrate * 1.3);
-    if (bad) {
-      goodChecks = 0;
-      if (autoLevel < LEVELS.length - 1) {
-        autoLevel++;
-        applyQuality();
-        sys('Poor connection detected \u2014 video quality lowered to ' + LEVELS[autoLevel] + '.');
-      }
-    } else if (good) {
-      if (++goodChecks >= 5 && autoLevel > 0) {
-        goodChecks = 0;
-        autoLevel--;
-        applyQuality();
-        sys('Connection is stable \u2014 video quality raised to ' + LEVELS[autoLevel] + '.');
-      }
-    } else {
-      goodChecks = 0;
-    }
-  }
-
-  els.qualityBtn.addEventListener('click', function () {
-    qualityMode = MODES[(MODES.indexOf(qualityMode) + 1) % MODES.length];
-    goodChecks = 0;
-    if (qualityMode === 'auto') autoLevel = 0;
-    applyQuality();
-    sys(qualityMode === 'auto' ? 'Video quality: automatic.' : 'Video quality set to ' + qualityMode + '.');
-  });
-
-  /* ---------------- layout: split / maximize ---------------- */
-
-  function setLayout(mode) {
-    var vids = $('videos'), tl = $('tileLocal'), tr = $('tileRemote');
-    if (mode === 'split') {
-      vids.classList.remove('maximized');
-      vids.appendChild(tl);
-      vids.appendChild(tr);
-    } else {
-      var big = mode === 'max-remote' ? tr : tl;
-      var small = big === tr ? tl : tr;
-      vids.classList.add('maximized');
-      vids.appendChild(big);
-      els.thumbSlot.appendChild(small);
-    }
-    els.layoutBtn.hidden = mode === 'split';
-    [els.localVideo, els.remoteVideo].forEach(function (v) {
-      var pr = v.play();
-      if (pr && pr.catch) pr.catch(function () {});
-    });
-  }
-
-  Array.prototype.forEach.call(document.querySelectorAll('.maxBtn'), function (b) {
-    b.addEventListener('click', function () { setLayout('max-' + b.getAttribute('data-tile')); });
-  });
-  els.thumbSlot.addEventListener('click', function (e) {
-    var tile = e.target.closest ? e.target.closest('.tile') : null;
-    if (tile) setLayout(tile.id === 'tileLocal' ? 'max-local' : 'max-remote');
-  });
-  els.layoutBtn.addEventListener('click', function () { setLayout('split'); });
-
-  /* ---------------- host mutes / unmutes the peer ---------------- */
-
-  var peerMutedByHost = false;
-  var lockedByHost = false;
-  var micBeforeLock = true;
-
-  function updateMuteGuestBtn() {
-    els.muteGuestBtn.textContent = peerMutedByHost ? 'Unmute peer' : 'Mute peer';
-  }
-
-  function sendMicState() {
-    if (conn && conn.open) conn.send({ type: 'mic-state', on: !!micTrack && micOn });
-  }
-
-  els.muteGuestBtn.addEventListener('click', function () {
-    if (role !== 'host' || !conn || !conn.open) return;
-    peerMutedByHost = !peerMutedByHost;
-    conn.send({ type: 'host-mute', muted: peerMutedByHost });
-    updateMuteGuestBtn();
-    sys(peerMutedByHost ? 'You muted the peer.' : 'You unmuted the peer (they can use their mic again).');
-  });
-
-  function handleHostMute(muted) {
-    if (role !== 'guest') return;
-    if (muted) {
-      if (!lockedByHost) micBeforeLock = micOn;
-      lockedByHost = true;
-      micOn = false;
-      if (micTrack) micTrack.enabled = false;
-      els.micBtn.textContent = 'Mic: Muted by host';
-      els.micBtn.disabled = true;
-      sys('The host muted your microphone.');
-    } else {
-      lockedByHost = false;
-      micOn = micBeforeLock;
-      if (micTrack) micTrack.enabled = micOn;
-      els.micBtn.textContent = 'Mic: ' + (micOn ? 'On' : 'Off');
-      els.micBtn.disabled = false;
-      sys('The host unmuted you' + (micOn && micTrack ? ' \u2014 your mic is back on.' : ' \u2014 your mic stays off until you turn it on.'));
-    }
-    sendMicState();
-  }
-
-  /* ---------------- camera / mic toggles ---------------- */
-
-  els.camBtn.addEventListener('click', function () {
-    if (!camTrack) return;
-    camOn = !camOn;
-    camTrack.enabled = camOn;
-    els.camBtn.textContent = 'Camera: ' + (camOn ? 'On' : 'Off');
-  });
-
-  els.micBtn.addEventListener('click', function () {
-    if (!micTrack) return;
-    micOn = !micOn;
-    micTrack.enabled = micOn;
-    els.micBtn.textContent = 'Mic: ' + (micOn ? 'On' : 'Off');
-    sendMicState();
-  });
-
-  /* ---------------- screen sharing (+ system audio) ---------------- */
-
-  els.shareBtn.addEventListener('click', function () {
-    if (!call || !call.peerConnection || screenStream) return;
-
-    navigator.mediaDevices.getDisplayMedia({
-      video: { frameRate: { ideal: 30, max: 60 } },
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-        sampleRate: 48000
-      }
-    }).then(function (stream) {
-      screenStream = stream;
-      var pc = call.peerConnection;
-
-      var screenVideo = stream.getVideoTracks()[0];
-      var videoSender = pc.getSenders().find(function (s) {
-        return s.track && s.track.kind === 'video';
-      });
-      if (videoSender) videoSender.replaceTrack(screenVideo);
-
-      var screenAudio = stream.getAudioTracks()[0];
-      if (screenAudio) {
-        try {
-          screenAudioSender = pc.addTrack(screenAudio, localStream);
-          sys('Sharing screen with system audio.');
-        } catch (e) {
-          console.warn('Could not add system audio', e);
-          sys('Sharing screen (system audio could not be added).');
-        }
-      } else {
-        sys('Sharing screen (browser did not provide system audio).');
-      }
-
-      els.localVideo.srcObject = stream;
-
-      els.shareBtn.hidden = true;
-      els.shareBtn.disabled = true;
-      els.stopShareBtn.hidden = false;
-      els.camBtn.disabled = true;
-      els.flipBtn.disabled = true;
-
-      screenVideo.addEventListener('ended', stopShare);
-    }).catch(function (err) {
-      if (err && err.name === 'NotAllowedError') sys('Screen share cancelled.');
-      else sys('Screen share failed: ' + err.message);
-    });
-  });
-
-  els.stopShareBtn.addEventListener('click', stopShare);
-
-  function stopShare() {
-    var stream = screenStream;
-    if (!stream) return;
-    screenStream = null;
-
-    stream.getTracks().forEach(function (t) { t.stop(); });
-
-    if (call && call.peerConnection) {
-      var pc = call.peerConnection;
-      var videoSender = pc.getSenders().find(function (s) {
-        return s.track && s.track.kind === 'video';
-      });
-      if (videoSender && camTrack) {
-        try { videoSender.replaceTrack(camTrack); } catch (e) {}
-      }
-      if (screenAudioSender) {
-        try { pc.removeTrack(screenAudioSender); } catch (e) {}
-        screenAudioSender = null;
-      }
-    }
-
-    if (localStream) els.localVideo.srcObject = localStream;
-
-    els.shareBtn.hidden = false;
-    els.shareBtn.disabled = false;
-    els.stopShareBtn.hidden = true;
-    els.camBtn.disabled = false;
-    els.flipBtn.disabled = videoDevices.length < 2;
-    sys('Stopped sharing.');
-  }
-
-  /* ---------------- copy room code ---------------- */
-
-  els.copyBtn.addEventListener('click', function () {
-    if (!roomCode) return;
-    var done = function () {
-      els.copyBtn.textContent = 'Copied!';
-      setTimeout(function () { els.copyBtn.textContent = 'Copy'; }, 1200);
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(roomCode).then(done, done);
-    } else {
-      var t = document.createElement('textarea');
-      t.value = roomCode;
-      document.body.appendChild(t);
-      t.select();
-      try { document.execCommand('copy'); } catch (e) {}
-      document.body.removeChild(t);
-      done();
-    }
-  });
-
-  /* ---------------- leave / teardown ---------------- */
-
-  els.hangupBtn.addEventListener('click', leaveRoom);
-
-  function leaveRoom() {
-    suppressPeerGone = true;
-    stopStatsMonitor();
-    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-    if (peerOpenTimer) { clearTimeout(peerOpenTimer); peerOpenTimer = null; }
-    reconnectAttempts = 0;
-
-    try { if (call) call.close(); } catch (e) {}
-    try { if (conn) conn.close(); } catch (e) {}
-    try { if (peer) peer.destroy(); } catch (e) {}
-
-    if (screenStream) {
-      screenStream.getTracks().forEach(function (t) { t.stop(); });
-    }
-    if (localStream) {
-      localStream.getTracks().forEach(function (t) { t.stop(); });
-    }
-
-    peer = null; call = null; conn = null;
-    localStream = null; remoteStream = null; screenStream = null;
-    screenAudioSender = null; camTrack = null; micTrack = null;
-    roomCode = null; role = null;
-    camOn = true; micOn = true;
-    usingCustomName = false;
-    suppressPeerGone = false;
-
-    els.localVideo.srcObject = null;
-    els.remoteVideo.srcObject = null;
-    if (els.lobbyPreview) els.lobbyPreview.srcObject = null;
-    els.chatLog.innerHTML = '';
-    els.chatInput.value = '';
-    els.chatInput.disabled = true;
-    els.sendBtn.disabled = true;
-    els.attachBtn.disabled = true;
-    els.camBtn.disabled = true;
-    els.micBtn.disabled = true;
-    els.flipBtn.disabled = true;
-    els.qualityBtn.disabled = true;
-    incoming = {};
-    els.muteGuestBtn.hidden = true;
-    els.muteGuestBtn.disabled = true;
-    peerMutedByHost = false; lockedByHost = false; micBeforeLock = true;
-    updateMuteGuestBtn();
-    els.peerLabel.textContent = 'Peer';
-    setLayout('split');
-    els.camBtn.textContent = 'Camera: On';
-    els.micBtn.textContent = 'Mic: On';
-    els.shareBtn.disabled = true;
-    els.shareBtn.hidden = false;
-    els.stopShareBtn.hidden = true;
-    els.reconnectBtn.hidden = true;
-    els.netBadge.hidden = true;
-    els.deviceSelectors.hidden = true;
-    els.cameraSelect.innerHTML = '';
-    els.micSelect.innerHTML = '';
-    resetCreateUI();
-    els.joinInput.value = '';
-    els.lobbyStatus.textContent = '';
-    els.status.textContent = 'Idle';
-
-    els.room.classList.remove('active');
-    els.lobby.style.display = 'flex';
-
-    runDiagnostics();
-    requestMedia().catch(function () {});
-  }
-
-  window.addEventListener('beforeunload', function () {
-    try { if (peer) peer.destroy(); } catch (e) {}
-  });
-
-  /* ---------------- startup ---------------- */
-
-  if (checkCapabilities()) {
-    checkInitialPermissions();
-    runDiagnostics();
-  }
-
-})();
-</script>
-</body>
-</html>
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener
