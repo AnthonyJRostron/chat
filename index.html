@@ -129,13 +129,18 @@
   #sidebar {
     width: 320px; display: flex; flex-direction: column;
     border-left: 1px solid #30363d; min-height: 0;
+    transition: width .2s;
   }
+  #sidebar.collapsed { display: none; }
   #chatToolbar {
     display: flex; gap: 6px;
     padding: 8px 10px; border-bottom: 1px solid #30363d;
     background: #0d1117;
   }
   #chatToolbar button { font-size: 11px; padding: 5px 10px; }
+  #chatToolbar button.active {
+    background: #1f6feb; border-color: #388bfd; color: #fff;
+  }
   #chatLog {
     flex: 1; overflow-y: auto; padding: 12px;
     font-size: 13px; display: flex; flex-direction: column; gap: 6px;
@@ -153,11 +158,89 @@
     display: flex; gap: 8px; flex-wrap: wrap;
     padding: 10px 16px; background: #161b22;
     border-top: 1px solid #30363d;
+    align-items: center;
+  }
+  #viewModeSelect {
+    font-size: 12px; padding: 7px 8px;
   }
   @media (max-width: 900px) {
     main { flex-direction: column; }
     #videos { grid-template-columns: 1fr; }
     #sidebar { width: auto; height: 240px; border-left: none; border-top: 1px solid #30363d; }
+  }
+
+  /* Floating "Open chat" pill, shown when sidebar is collapsed */
+  #expandChatBtn {
+    position: fixed;
+    right: 16px;
+    bottom: 76px;
+    z-index: 400;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    background: #238636;
+    border-color: #2ea043;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    display: flex; align-items: center; gap: 6px;
+  }
+  #expandChatBtn:hover { background: #2ea043; }
+  #expandChatBtn[hidden] { display: none; }
+  #expandChatBtn .badgeDot {
+    background: #f85149; color: #fff;
+    border-radius: 999px; font-size: 11px;
+    padding: 1px 6px; min-width: 18px; text-align: center;
+  }
+  #expandChatBtn .badgeDot[hidden] { display: none; }
+
+  /* Flash message input bar (host) */
+  #flashBar {
+    position: fixed;
+    right: 16px;
+    bottom: 76px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 10px;
+    display: flex; gap: 8px; align-items: center;
+    z-index: 700;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    max-width: calc(100vw - 32px);
+  }
+  #flashBar[hidden] { display: none; }
+  #flashBar input[type=text] { min-width: 220px; flex: 1; }
+  @media (max-width: 700px) {
+    #flashBar { left: 12px; right: 12px; bottom: 76px; flex-wrap: wrap; }
+    #flashBar input[type=text] { min-width: 0; width: 100%; }
+  }
+
+  /* Flash overlay (message shown over the video area) */
+  #flashOverlay {
+    position: fixed;
+    left: 50%;
+    top: 84px;
+    transform: translateX(-50%);
+    max-width: min(90vw, 760px);
+    background: rgba(13,17,23,0.9);
+    border: 2px solid #58a6ff;
+    border-radius: 12px;
+    padding: 14px 24px;
+    font-size: clamp(16px, 2.6vw, 28px);
+    color: #e6edf3;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.3;
+    z-index: 800;
+    pointer-events: none;
+    box-shadow: 0 10px 36px rgba(0,0,0,0.75);
+    white-space: pre-wrap;
+    word-break: break-word;
+    animation: flashIn .3s ease-out;
+  }
+  #flashOverlay[hidden] { display: none; }
+  @keyframes flashIn {
+    from { opacity: 0; transform: translate(-50%, -18px) scale(0.97); }
+    to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
   }
 
   /* ---------- Network diagnostics ---------- */
@@ -450,6 +533,7 @@
     </div>
     <aside id="sidebar">
       <div id="chatToolbar">
+        <button id="pinChatBtn" class="smallBtn" type="button" title="Keep the chat open">Pin</button>
         <button id="copyChatBtn" class="smallBtn" type="button" hidden>Copy chat</button>
         <button id="saveFilesBtn" class="smallBtn" type="button" hidden>Save attachments</button>
       </div>
@@ -465,16 +549,35 @@
   <footer>
     <button id="camBtn" disabled>Camera: On</button>
     <button id="micBtn" disabled>Mic: On</button>
-    <button id="sysAudioBtn" hidden disabled title="Toggle computer (system) audio while screen sharing">Computer audio: Off</button>
+    <select id="viewModeSelect" hidden title="What the peer sees / hears">
+      <option value="camera">Live video only</option>
+      <option value="screen">Shared screen + audio</option>
+      <option value="camera+audio">Live video + audio</option>
+    </select>
+    <button id="sysAudioBtn" hidden disabled title="Toggle computer (system) audio">Computer audio: Off</button>
     <button id="flipBtn" disabled hidden>Switch camera</button>
     <button id="muteGuestBtn" hidden disabled>Mute peer</button>
     <button id="qualityBtn" disabled title="Reduce video quality to save bandwidth">Quality: Auto</button>
+    <button id="flashBtn" hidden title="Show a short message on the peer's video">Flash message</button>
     <button id="shareBtn" disabled>Share screen + audio</button>
     <button id="stopShareBtn" class="danger" hidden>Stop sharing</button>
     <button id="reconnectBtn" hidden>Reconnect now</button>
     <button id="hangupBtn" class="danger" style="margin-left:auto">Leave</button>
   </footer>
 </div>
+
+<!-- Flash input bar (host only) -->
+<div id="flashBar" hidden>
+  <input id="flashInput" type="text" maxlength="200" placeholder="Flash message for peer (visible 5 s)…" autocomplete="off" />
+  <button id="flashSendBtn" type="button" class="primary">Send</button>
+  <button id="flashCloseBtn" type="button">Close</button>
+</div>
+
+<!-- Chat expand pill -->
+<button id="expandChatBtn" hidden type="button">💬 Chat <span id="chatBadge" class="badgeDot" hidden>0</span></button>
+
+<!-- Flash overlay shown over the video area -->
+<div id="flashOverlay" hidden></div>
 
 <!-- ============ WAITING ROOM ============ -->
 <div id="waitingRoom" class="waitingRoom" hidden>
@@ -579,9 +682,17 @@
     roomCode: $('roomCode'), copyBtn: $('copyBtn'), status: $('status'),
     localVideo: $('localVideo'), remoteVideo: $('remoteVideo'),
     chatLog: $('chatLog'), chatInput: $('chatInput'), sendBtn: $('sendBtn'),
+    sidebar: $('sidebar'),
     chatToolbar: $('chatToolbar'),
+    pinChatBtn: $('pinChatBtn'),
     copyChatBtn: $('copyChatBtn'), saveFilesBtn: $('saveFilesBtn'),
+    expandChatBtn: $('expandChatBtn'), chatBadge: $('chatBadge'),
     camBtn: $('camBtn'), micBtn: $('micBtn'), sysAudioBtn: $('sysAudioBtn'), flipBtn: $('flipBtn'),
+    viewModeSelect: $('viewModeSelect'),
+    flashBtn: $('flashBtn'),
+    flashBar: $('flashBar'), flashInput: $('flashInput'),
+    flashSendBtn: $('flashSendBtn'), flashCloseBtn: $('flashCloseBtn'),
+    flashOverlay: $('flashOverlay'),
     shareBtn: $('shareBtn'), stopShareBtn: $('stopShareBtn'),
     hangupBtn: $('hangupBtn'), reconnectBtn: $('reconnectBtn'),
     netBadge: $('netBadge'), netDiag: $('netDiag'),
@@ -692,11 +803,6 @@
   function saveHostRooms(list) {
     try { localStorage.setItem(LS_HOST_ROOMS, JSON.stringify(list)); } catch (e) {}
   }
-  function rememberHostRoom(name) {
-    if (!name) return;
-    var list = loadHostRooms();
-    if (list.indexOf(name) < 0) { list.push(name); saveHostRooms(list); renderHostRooms(); }
-  }
   function loadGuestRooms() {
     try { var v = JSON.parse(localStorage.getItem(LS_GUEST_ROOMS)); return Array.isArray(v) ? v : []; }
     catch (e) { return []; }
@@ -790,10 +896,8 @@
   function addRoomRow(name) {
     var p = els.roomsList.querySelector('p');
     if (p) p.remove();
-
     var row = document.createElement('div');
     row.className = 'roomRow';
-
     var inp = document.createElement('input');
     inp.type = 'text';
     inp.value = name || '';
@@ -802,13 +906,11 @@
     inp.addEventListener('input', function () {
       inp.value = sanitizeRoomName(inp.value);
     });
-
     var del = document.createElement('button');
     del.type = 'button';
     del.className = 'danger roomDelBtn';
     del.textContent = 'Delete';
     del.addEventListener('click', function () { row.remove(); });
-
     row.appendChild(inp);
     row.appendChild(del);
     els.roomsList.appendChild(row);
@@ -840,6 +942,7 @@
     if (e.key === 'Escape') {
       if (!els.roomsModal.hidden) closeRoomsModal();
       else if (!els.helpModal.hidden) closeHelpModal();
+      else if (!els.flashBar.hidden) closeFlashBar();
     }
   });
 
@@ -848,7 +951,6 @@
 
   /* ---------------- connection chime ---------------- */
   var connectionAnnounced = false;
-
   function playConnectedChime() {
     try {
       var Ctx = window.AudioContext || window.webkitAudioContext;
@@ -872,7 +974,6 @@
       setTimeout(function () { try { ctx.close(); } catch (e) {} }, 1200);
     } catch (e) { console.warn('chime failed', e); }
   }
-
   function announceConnection() {
     if (connectionAnnounced) return;
     connectionAnnounced = true;
@@ -894,14 +995,12 @@
     sys('No host is listening on "' + roomCode + '" yet. Waiting…');
     scheduleHostRetry(2500);
   }
-
   function exitWaitingRoom() {
     if (!waitingForHost) return;
     waitingForHost = false;
     if (waitForHostTimer) { clearTimeout(waitForHostTimer); waitForHostTimer = null; }
     els.waitingRoom.hidden = true;
   }
-
   function scheduleHostRetry(delay) {
     if (waitForHostTimer) return;
     waitForHostTimer = setTimeout(function () {
@@ -911,7 +1010,6 @@
       connectToHost();
     }, delay);
   }
-
   els.cancelWaitBtn.addEventListener('click', function () {
     exitWaitingRoom();
     leaveRoom();
@@ -936,15 +1034,25 @@
 
   // Screen-share audio mixing
   var sysAudioTrack = null;
-  var sysAudioOn = false;
   var audioCtx = null;
   var micGainNode = null;
   var sysGainNode = null;
   var mixedAudioTrack = null;
 
+  // NEW: outgoing mode
+  // viewMode: 'camera' | 'screen'  → which video goes on the wire
+  // useSysAudio: boolean          → mix system audio into the outgoing audio
+  var viewMode = 'camera';
+  var useSysAudio = false;
+
   // Chat queueing + transcript
-  var pendingMessages = [];   // queued while conn is not yet open
-  var transcript = [];        // everything for "Copy chat" / "Save attachments"
+  var pendingMessages = [];
+  var transcript = [];
+
+  // Chat auto-collapse
+  var chatPinned = false;
+  var chatCollapseTimer = null;
+  var CHAT_IDLE_MS = 30000;
 
   /* ---------------- helpers ---------------- */
   function randomCode() {
@@ -973,6 +1081,8 @@
 
     if (cls === 'sys') transcript.push({ kind: 'sys', text: text });
     else transcript.push({ kind: 'text', who: who || (cls === 'me' ? 'You' : 'Peer'), text: text });
+
+    if (cls !== 'sys') scheduleChatCollapse();
   }
   function sys(t) { addMsg('sys', null, t); }
 
@@ -998,7 +1108,6 @@
 
   /* ---------------- help modal ---------------- */
   var helpAutoShown = false;
-
   function openHelpModal() {
     var os = detectOS();
     els.helpBrowserName.textContent = detectBrowserName();
@@ -1383,11 +1492,8 @@
       newTrack.enabled = micOn;
       micTrack = newTrack;
 
-      if (screenStream && sysAudioTrack) {
-        rebuildMixedAudio();
-      } else {
-        syncOutboundToCall();
-      }
+      if (screenStream && sysAudioTrack) rebuildMixedAudio();
+      syncOutboundToCall();
 
       showMicState();
       els.micSelect.disabled = false;
@@ -1499,10 +1605,12 @@
     localStream.addTrack(newTrack);
     newTrack.enabled = camOn;
     camTrack = newTrack;
-    els.localVideo.srcObject = localStream;
     if (els.lobbyPreview) els.lobbyPreview.srcObject = localStream;
-    if (screenStream) {
-      // still sharing: keep the screen on the wire, but the new cam is ready for later
+    if (viewMode === 'camera' || !screenStream) {
+      els.localVideo.srcObject = localStream;
+    }
+    if (viewMode === 'screen' && screenStream) {
+      // still showing the screen: nothing to send
       return;
     }
     syncOutboundToCall();
@@ -1522,33 +1630,103 @@
   els.flipBtn.addEventListener('click', flipCamera);
 
   /* ---------------- outbound track sync ---------------- */
-  // Applied whenever the call exists and the "current outbound" may have
-  // changed (screen share start/stop, mic switch, or a new call being set
-  // up while a share is already active).
+  // Sends the correct video + audio tracks to the peer based on viewMode
+  // and useSysAudio, regardless of whether the call exists yet.
   function syncOutboundToCall() {
     if (!call || !call.peerConnection) return;
     var pc = call.peerConnection;
 
-    var videoSender = pc.getSenders().find(function (s) {
-      return s.track && s.track.kind === 'video';
-    });
+    // video
+    var videoSender = pc.getSenders().find(function (s) { return s.track && s.track.kind === 'video'; });
     if (videoSender) {
-      var wantVideo = (screenStream && screenStream.getVideoTracks()[0]) || camTrack;
+      var wantVideo;
+      if (viewMode === 'screen' && screenStream && screenStream.getVideoTracks()[0]) {
+        wantVideo = screenStream.getVideoTracks()[0];
+      } else {
+        wantVideo = camTrack;
+      }
       if (wantVideo && videoSender.track !== wantVideo) {
         try { videoSender.replaceTrack(wantVideo); } catch (e) { console.warn('replaceTrack video failed', e); }
       }
     }
 
-    var audioSender = pc.getSenders().find(function (s) {
-      return s.track && s.track.kind === 'audio';
-    });
+    // audio
+    var audioSender = pc.getSenders().find(function (s) { return s.track && s.track.kind === 'audio'; });
     if (audioSender) {
-      var wantAudio = mixedAudioTrack || micTrack;
+      var wantAudio;
+      if (useSysAudio && sysAudioTrack) {
+        wantAudio = micTrack ? (mixedAudioTrack || sysAudioTrack) : sysAudioTrack;
+      } else {
+        wantAudio = micTrack;
+      }
       if (wantAudio && audioSender.track !== wantAudio) {
         try { audioSender.replaceTrack(wantAudio); } catch (e) { console.warn('replaceTrack audio failed', e); }
       }
     }
+
+    updateSysAudioBtnLabel();
   }
+
+  function updateSysAudioBtnLabel() {
+    if (!screenStream) {
+      els.sysAudioBtn.hidden = true;
+      els.sysAudioBtn.disabled = true;
+      return;
+    }
+    els.sysAudioBtn.hidden = false;
+    els.sysAudioBtn.disabled = !sysAudioTrack;
+    els.sysAudioBtn.textContent = 'Computer audio: ' + (useSysAudio && sysAudioTrack ? 'On' : 'Off');
+  }
+
+  function syncViewModeUi() {
+    if (!screenStream) {
+      els.viewModeSelect.hidden = true;
+      els.sysAudioBtn.hidden = true;
+      return;
+    }
+    els.viewModeSelect.hidden = false;
+    // Pick the option that best matches current state
+    var val;
+    if (viewMode === 'screen') val = 'screen';
+    else if (useSysAudio) val = 'camera+audio';
+    else val = 'camera';
+    els.viewModeSelect.value = val;
+    updateSysAudioBtnLabel();
+  }
+
+  function applyViewMode(mode) {
+    if (mode === 'camera') { viewMode = 'camera'; useSysAudio = false; }
+    else if (mode === 'screen') { viewMode = 'screen'; useSysAudio = true; }
+    else if (mode === 'camera+audio') { viewMode = 'camera'; useSysAudio = true; }
+
+    // Local preview reflects what is actually being sent
+    if (viewMode === 'screen' && screenStream) {
+      els.localVideo.srcObject = screenStream;
+    } else if (localStream) {
+      els.localVideo.srcObject = localStream;
+    }
+
+    syncOutboundToCall();
+    syncViewModeUi();
+  }
+
+  els.viewModeSelect.addEventListener('change', function () {
+    applyViewMode(els.viewModeSelect.value);
+    var label = els.viewModeSelect.options[els.viewModeSelect.selectedIndex].textContent;
+    sys('Outgoing view: ' + label + '.');
+  });
+
+  els.sysAudioBtn.addEventListener('click', function () {
+    if (!sysAudioTrack) return;
+    useSysAudio = !useSysAudio;
+    // If enabling computer audio while showing camera, that's "live video + audio"
+    // If disabling while showing screen, that's screen-only audio + mic
+    if (useSysAudio && sysAudioTrack.enabled === false) sysAudioTrack.enabled = true;
+    if (!useSysAudio && sysAudioTrack) sysAudioTrack.enabled = false;
+    syncOutboundToCall();
+    syncViewModeUi();
+    sys(useSysAudio ? 'Computer audio included.' : 'Computer audio muted (microphone still live).');
+  });
 
   /* ---------------- lobby actions ---------------- */
   els.createBtn.addEventListener('click', function () {
@@ -1657,14 +1835,16 @@
     els.shareBtn.disabled = false;
 
     if (role === 'host') {
-      // Host can preload chat + screen-share before the peer arrives.
       els.chatInput.disabled = false;
       els.sendBtn.disabled = false;
       els.attachBtn.disabled = false;
       els.copyChatBtn.hidden = false;
       els.saveFilesBtn.hidden = false;
+      els.flashBtn.hidden = false;
     }
     renderHostRooms();
+    syncViewModeUi();
+    scheduleChatCollapse();
   }
 
   /* ---------------- host: incoming ---------------- */
@@ -1718,8 +1898,6 @@
       call.peerConnection.addEventListener('iceconnectionstatechange', function () {
         handleIceState(call.peerConnection.iceConnectionState);
       });
-      // If we're already sharing screen / mixed audio before the peer
-      // arrived, put those tracks on the wire now.
       syncOutboundToCall();
     }
   }
@@ -1736,17 +1914,24 @@
         els.muteGuestBtn.disabled = false;
         if (peerMutedByHost) conn.send({ type: 'host-mute', muted: true });
       }
-      // Deliver anything that was queued before the peer joined.
       flushPending();
       sendMicState();
+      scheduleChatCollapse();
     });
 
     conn.on('data', function (data) {
       if (!data) return;
-      if (data.type === 'chat') addMsg('them', 'Peer', String(data.text));
-      else if (data.type === 'host-mute') handleHostMute(!!data.muted);
-      else if (data.type === 'mic-state') els.peerLabel.textContent = 'Peer' + (data.on ? '' : ' \u{1F507}');
-      else handleFileMessage(data);
+      if (data.type === 'chat') {
+        addMsg('them', 'Peer', String(data.text));
+      } else if (data.type === 'flash') {
+        showFlashOnVideo(String(data.text || ''));
+      } else if (data.type === 'host-mute') {
+        handleHostMute(!!data.muted);
+      } else if (data.type === 'mic-state') {
+        els.peerLabel.textContent = 'Peer' + (data.on ? '' : ' \u{1F507}');
+      } else {
+        handleFileMessage(data);
+      }
     });
 
     conn.on('close', onPeerGone);
@@ -1770,8 +1955,6 @@
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     setStatus('Peer left');
     sys('Peer disconnected.');
-    // Keep chat enabled so host (or guest) can still queue messages for when
-    // the peer returns; they'll be flushed on the next conn.open.
     els.netBadge.hidden = true;
     els.reconnectBtn.hidden = true;
     els.remoteVideo.srcObject = null;
@@ -1801,7 +1984,6 @@
       els.reconnectBtn.hidden = true;
     }
   }
-
   function scheduleReconnect(delay) {
     if (reconnectTimer) return;
     if (reconnectAttempts >= MAX_RECONNECT) {
@@ -1816,7 +1998,6 @@
       attemptReconnect();
     }, delay);
   }
-
   function attemptReconnect() {
     if (!roomCode || !peer || peer.destroyed) return;
     sys('Reconnect attempt ' + reconnectAttempts + ' of ' + MAX_RECONNECT + '…');
@@ -1834,7 +2015,6 @@
       setStatus('Waiting for peer to reconnect…');
     }
   }
-
   els.reconnectBtn.addEventListener('click', function () {
     reconnectAttempts = 0;
     els.reconnectBtn.hidden = true;
@@ -1949,11 +2129,11 @@
     } else {
       pendingMessages.push({ kind: 'chat', text: text });
       addMsg('me', 'You', text);
-      // Subtle note that it's held locally
       if (pendingMessages.length === 1) {
         sys('Messages are being queued and will be delivered when the peer joins.');
       }
     }
+    scheduleChatCollapse();
   }
 
   function queueOrSendFile(file) {
@@ -1966,6 +2146,7 @@
         sys('Files are queued and will be sent when the peer joins.');
       }
     }
+    scheduleChatCollapse();
   }
 
   function flushPending() {
@@ -1981,6 +2162,7 @@
         fileQueue = fileQueue.then(function () { return sendFile(item.file, item.ui); });
       }
     });
+    scheduleChatCollapse();
   }
 
   /* ---------------- chat ---------------- */
@@ -1992,6 +2174,53 @@
   }
   els.sendBtn.addEventListener('click', sendChat);
   els.chatInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') sendChat(); });
+  els.chatInput.addEventListener('input', function () {
+    // typing counts as activity → postpone auto-collapse
+    scheduleChatCollapse();
+  });
+
+  /* ---------------- chat auto-collapse ---------------- */
+  function expandChat() {
+    els.sidebar.classList.remove('collapsed');
+    els.expandChatBtn.hidden = true;
+    els.chatBadge.hidden = true;
+    els.chatBadge.textContent = '0';
+    scheduleChatCollapse();
+  }
+
+  function collapseChat() {
+    els.sidebar.classList.add('collapsed');
+    els.expandChatBtn.hidden = false;
+  }
+
+  function scheduleChatCollapse() {
+    if (chatCollapseTimer) { clearTimeout(chatCollapseTimer); chatCollapseTimer = null; }
+    if (chatPinned) return;
+    chatCollapseTimer = setTimeout(function () {
+      chatCollapseTimer = null;
+      if (chatPinned) return;
+      if (pendingMessages.length > 0) {
+        // Queue not empty → keep visible; retry shortly.
+        scheduleChatCollapse();
+        return;
+      }
+      collapseChat();
+    }, CHAT_IDLE_MS);
+  }
+
+  els.pinChatBtn.addEventListener('click', function () {
+    chatPinned = !chatPinned;
+    els.pinChatBtn.classList.toggle('active', chatPinned);
+    els.pinChatBtn.textContent = chatPinned ? 'Pinned' : 'Pin';
+    if (chatPinned) {
+      expandChat();
+      if (chatCollapseTimer) { clearTimeout(chatCollapseTimer); chatCollapseTimer = null; }
+    } else {
+      scheduleChatCollapse();
+    }
+  });
+
+  els.expandChatBtn.addEventListener('click', expandChat);
 
   /* ---------------- file attachments ---------------- */
   var MAX_FILE = 50 * 1024 * 1024;
@@ -2020,10 +2249,7 @@
     els.chatLog.appendChild(row);
     els.chatLog.scrollTop = els.chatLog.scrollHeight;
 
-    var entry = {
-      kind: 'file', who: who, name: name, size: size,
-      blob: sourceBlob || null
-    };
+    var entry = { kind: 'file', who: who, name: name, size: size, blob: sourceBlob || null };
     transcript.push(entry);
 
     return {
@@ -2097,6 +2323,7 @@
       var name = String(d.name || 'file').slice(0, 120);
       incoming[d.id] = { name: name, size: +d.size || 0, mime: String(d.mime || ''), chunks: [], got: 0,
         ui: addFileMsg('them', 'Peer', name, +d.size || 0, '\u2014 receiving\u2026') };
+      scheduleChatCollapse();
     } else if (d.type === 'file-chunk') {
       var f = incoming[d.id];
       if (!f || !d.data) return;
@@ -2108,6 +2335,7 @@
       if (!g) return;
       delete incoming[d.id];
       g.ui.link(new Blob(g.chunks, { type: g.mime }), g.mime);
+      scheduleChatCollapse();
     }
   }
 
@@ -2172,6 +2400,56 @@
         }
       }, i * 250);
     });
+  });
+
+  /* ---------------- flash message (host) ---------------- */
+  var flashHideTimer = null;
+
+  function openFlashBar() {
+    els.flashBar.hidden = false;
+    els.flashInput.focus();
+  }
+  function closeFlashBar() {
+    els.flashBar.hidden = true;
+    els.flashInput.value = '';
+  }
+  function sendFlash() {
+    var text = els.flashInput.value.trim();
+    if (!text) { closeFlashBar(); return; }
+    if (!conn || !conn.open) {
+      sys('Flash not sent \u2014 the peer is not connected yet.');
+      return;
+    }
+    conn.send({ type: 'flash', text: text });
+    showFlashOnVideo(text);
+    sys('\u{1F4E3} Flash: ' + text);
+    els.flashInput.value = '';
+    els.flashInput.focus();
+  }
+  function showFlashOnVideo(text) {
+    if (!text) return;
+    els.flashOverlay.textContent = text;
+    els.flashOverlay.hidden = false;
+    // restart the animation
+    els.flashOverlay.style.animation = 'none';
+    void els.flashOverlay.offsetHeight;
+    els.flashOverlay.style.animation = '';
+    if (flashHideTimer) clearTimeout(flashHideTimer);
+    flashHideTimer = setTimeout(function () {
+      els.flashOverlay.hidden = true;
+      flashHideTimer = null;
+    }, 5000);
+  }
+
+  els.flashBtn.addEventListener('click', function () {
+    if (els.flashBar.hidden) openFlashBar();
+    else closeFlashBar();
+  });
+  els.flashSendBtn.addEventListener('click', sendFlash);
+  els.flashCloseBtn.addEventListener('click', closeFlashBar);
+  els.flashInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); sendFlash(); }
+    if (e.key === 'Escape') closeFlashBar();
   });
 
   /* ---------------- video quality ---------------- */
@@ -2319,7 +2597,7 @@
     sendMicState();
   }
 
-  /* ---------------- camera / mic / computer audio ---------------- */
+  /* ---------------- camera / mic toggles ---------------- */
   els.camBtn.addEventListener('click', function () {
     if (!camTrack) return;
     camOn = !camOn;
@@ -2333,14 +2611,6 @@
     micTrack.enabled = micOn;
     els.micBtn.textContent = 'Mic: ' + (micOn ? 'On' : 'Off');
     sendMicState();
-  });
-
-  els.sysAudioBtn.addEventListener('click', function () {
-    if (!sysAudioTrack) return;
-    sysAudioOn = !sysAudioOn;
-    sysAudioTrack.enabled = sysAudioOn;
-    els.sysAudioBtn.textContent = 'Computer audio: ' + (sysAudioOn ? 'On' : 'Off');
-    sys(sysAudioOn ? 'Computer audio unmuted.' : 'Computer audio muted.');
   });
 
   /* ---------------- screen sharing with audio mixing ---------------- */
@@ -2381,8 +2651,6 @@
     syncOutboundToCall();
   }
 
-  // Start screen share — allowed even before the peer joins so the host
-  // can prepare the class.
   function startScreenShare() {
     if (screenStream) return;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
@@ -2407,32 +2675,31 @@
 
       if (screenAudio) {
         sysAudioTrack = screenAudio;
-        sysAudioOn = true;
+        sysAudioTrack.enabled = true;
         mixedAudioTrack = micTrack ? (buildMixedAudio(micTrack, screenAudio) || screenAudio) : screenAudio;
-        els.sysAudioBtn.hidden = false;
-        els.sysAudioBtn.disabled = false;
-        els.sysAudioBtn.textContent = 'Computer audio: On';
       } else {
         sysAudioTrack = null;
         mixedAudioTrack = null;
-        els.sysAudioBtn.hidden = true;
-        els.sysAudioBtn.disabled = true;
-        els.sysAudioBtn.textContent = 'Computer audio: Off';
       }
 
-      // Preview the shared stream locally
+      // Enter "screen + audio" mode (or just "screen + mic" if no sys audio)
+      viewMode = 'screen';
+      useSysAudio = !!screenAudio;
+
+      // Local preview shows the shared screen
       els.localVideo.srcObject = stream;
+
       els.shareBtn.hidden = true;
       els.shareBtn.disabled = true;
       els.stopShareBtn.hidden = false;
       els.camBtn.disabled = true;
       els.flipBtn.disabled = true;
 
-      // Push onto any active call
+      syncViewModeUi();
       syncOutboundToCall();
 
       if (screenAudio) {
-        sys('Sharing screen with computer audio (mixed with your microphone). Use "Computer audio" to mute just the computer side.');
+        sys('Sharing screen with computer audio (mixed with your microphone). Use the view mode dropdown to switch between Live video / Shared screen without interrupting the audio.');
       } else {
         sys('Sharing screen. No system audio was provided \u2014 on Chrome/Edge tick "Share audio" in the picker to include it next time.');
       }
@@ -2460,13 +2727,12 @@
 
     if (audioCtx) { try { audioCtx.close(); } catch (e) {} audioCtx = null; }
     micGainNode = null; sysGainNode = null; mixedAudioTrack = null;
-    sysAudioTrack = null; sysAudioOn = false;
+    sysAudioTrack = null;
+
+    viewMode = 'camera';
+    useSysAudio = false;
 
     if (localStream) els.localVideo.srcObject = localStream;
-
-    els.sysAudioBtn.hidden = true;
-    els.sysAudioBtn.disabled = true;
-    els.sysAudioBtn.textContent = 'Computer audio: Off';
 
     els.shareBtn.hidden = false;
     els.shareBtn.disabled = false;
@@ -2474,7 +2740,7 @@
     els.camBtn.disabled = false;
     els.flipBtn.disabled = videoDevices.length < 2;
 
-    // Put cam + mic back on the wire
+    syncViewModeUi();
     syncOutboundToCall();
 
     sys('Stopped sharing.');
@@ -2543,6 +2809,8 @@
     stopStatsMonitor();
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     if (peerOpenTimer) { clearTimeout(peerOpenTimer); peerOpenTimer = null; }
+    if (chatCollapseTimer) { clearTimeout(chatCollapseTimer); chatCollapseTimer = null; }
+    if (flashHideTimer) { clearTimeout(flashHideTimer); flashHideTimer = null; }
     reconnectAttempts = 0;
 
     try { if (call) call.close(); } catch (e) {}
@@ -2552,7 +2820,7 @@
     if (screenStream) screenStream.getTracks().forEach(function (t) { t.stop(); });
     if (audioCtx) { try { audioCtx.close(); } catch (e) {} }
     audioCtx = null; micGainNode = null; sysGainNode = null; mixedAudioTrack = null;
-    sysAudioTrack = null; sysAudioOn = false;
+    sysAudioTrack = null;
 
     if (localStream) localStream.getTracks().forEach(function (t) { t.stop(); });
 
@@ -2564,6 +2832,9 @@
     usingCustomName = false;
     connectionAnnounced = false;
     suppressPeerGone = false;
+
+    viewMode = 'camera';
+    useSysAudio = false;
 
     els.localVideo.srcObject = null;
     els.remoteVideo.srcObject = null;
@@ -2580,6 +2851,9 @@
     els.attachBtn.disabled = true;
     els.copyChatBtn.hidden = true;
     els.saveFilesBtn.hidden = true;
+    els.flashBtn.hidden = true;
+    if (!els.flashBar.hidden) closeFlashBar();
+    els.flashOverlay.hidden = true;
     els.camBtn.disabled = true;
     els.micBtn.disabled = true;
     els.flipBtn.disabled = true;
@@ -2595,6 +2869,7 @@
     els.sysAudioBtn.hidden = true;
     els.sysAudioBtn.disabled = true;
     els.sysAudioBtn.textContent = 'Computer audio: Off';
+    els.viewModeSelect.hidden = true;
     els.shareBtn.disabled = true;
     els.shareBtn.hidden = false;
     els.stopShareBtn.hidden = true;
@@ -2606,6 +2881,13 @@
     els.hostRoomSelect.hidden = true;
     els.hostRoomSelect.innerHTML = '';
     if (els.editRoomsBtnRoom) els.editRoomsBtnRoom.hidden = true;
+
+    // reset chat auto-collapse
+    chatPinned = false;
+    els.pinChatBtn.classList.remove('active');
+    els.pinChatBtn.textContent = 'Pin';
+    expandChat();
+
     resetCreateUI();
     els.joinInput.value = '';
     els.lobbyStatus.textContent = '';
