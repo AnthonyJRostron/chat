@@ -314,7 +314,7 @@
   }
   .mediaCol { flex: 1; min-width: 0; }
   .mediaCol button { width: 100%; margin-bottom: 6px; }
-  .mediaCol .hint { margin: 0; }
+  .mediaCol .hint { margin: 0; white-space: pre-line; }
   .camLog {
     display: none; margin: 10px 0 0; padding: 8px 10px; border-radius: 8px;
     background: #0d1117; border: 1px solid #30363d; color: #8b949e;
@@ -451,8 +451,8 @@
     <div class="mediaPreviewWrap">
       <video id="lobbyPreview" autoplay muted playsinline></video>
       <div class="mediaCol">
-        <button id="enableMediaBtn" type="button">Enable camera &amp; microphone</button>
-        <p id="mediaStatus" class="hint">Tap to allow camera &amp; microphone access.</p>
+        <button id="enableMediaBtn" type="button">Grant camera &amp; microphone access</button>
+        <p id="mediaStatus" class="hint" role="status" aria-live="polite">Allow both camera and microphone access when your browser asks. Both are required to join.</p>
       </div>
     </div>
 
@@ -470,8 +470,8 @@
     <pre id="camLog" class="camLog"></pre>
 
     <div id="settingsWarn" class="settingsWarn">
-      <strong>Camera / microphone access looks blocked.</strong>
-      Your browser settings (or your phone's OS settings) are preventing this page from using the microphone or camera.
+      <strong>Did you press “Never allow” or “Block”? That is likely why access is failing.</strong>
+      The browser remembers that choice and will not show the permission prompt again until you change or reset this site's Camera and Microphone permissions. Then retry access below.
       <button id="showHelpBtn" type="button">Show me how to fix it</button>
     </div>
 
@@ -669,62 +669,48 @@
 <!-- ============ HELP MODAL ============ -->
 <div id="helpModal" class="modal-overlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
-    <h2 id="helpTitle">No podemos acceder al micrófono o la cámara</h2>
-    <p>
-      Tu navegador (<span id="helpBrowserName">este navegador</span>) no está recibiendo permiso para usar el
-      micrófono o la cámara. Esto casi siempre significa que el sistema operativo de tu teléfono
-      ha bloqueado el acceso para este navegador — no es un fallo de la página.
-    </p>
-    <p>
-      Sigue las instrucciones según tu dispositivo. Después, <strong>recarga la página</strong>.
-    </p>
+    <h2 id="helpTitle">Did you press “Never allow”? This is likely the problem.</h2>
+    <p>Your browser (<span id="helpBrowserName">this browser</span>) is not allowing this page to use the camera or microphone.</p>
+    <p><strong>If you selected “Never allow” or “Block”, the browser is remembering that choice and will not show the permission prompt again.</strong>
+      Change or reset this site's camera and microphone permissions in the browser settings, then return here and retry.
+      A webpage cannot clear a browser's remembered decision or force the native prompt to appear.</p>
 
     <div id="helpIos" class="helpSection" hidden>
       <h3>iPhone / iPad</h3>
       <ol>
-        <li>Abre la app <strong>Ajustes</strong> en tu iPhone o iPad.</li>
-        <li>Desplázate hacia abajo y toca el nombre de tu navegador
-            (por ejemplo, <strong>Edge</strong>, <strong>Chrome</strong> o <strong>Safari</strong>).</li>
-        <li>Activa los interruptores de <strong>Micrófono</strong> y <strong>Cámara</strong>.</li>
-        <li>Si usas <strong>Safari</strong>: ve a
-            <span class="stepArrow">Ajustes → Safari → Cámara → Permitir</span> y
-            <span class="stepArrow">Ajustes → Safari → Micrófono → Permitir</span>.</li>
-        <li>Vuelve a este navegador y <strong>recarga la página</strong>.</li>
+        <li>Open the device's <strong>Settings</strong> and select this browser. Allow its <strong>Microphone</strong> and <strong>Camera</strong> permissions.</li>
+        <li>In Safari, also check <span class="stepArrow">Settings → Safari → Camera / Microphone</span>.</li>
+        <li>For a site-specific block, open this website's settings in the browser and change Camera and Microphone from <strong>Block</strong> to <strong>Ask</strong> or <strong>Allow</strong>, or reset the website permissions.</li>
+        <li>Return here and tap <strong>Retry camera &amp; microphone</strong>.</li>
       </ol>
       <div class="tip">
-        <strong>En iOS 26 hay un fallo conocido:</strong> a veces el micrófono deja de funcionar hasta que se
-        reinicia el navegador por completo. Si después de permitir los permisos sigue sin funcionar,
-        <strong>cierra el navegador del todo</strong> (desliza la app hacia arriba en el selector de apps)
-        y vuelve a abrirlo, o reinicia el iPhone.
+        If access is still blocked after changing permissions, close and reopen the browser, then retry.
       </div>
     </div>
 
     <div id="helpAndroid" class="helpSection" hidden>
       <h3>Android</h3>
       <ol>
-        <li>Abre <strong>Ajustes</strong> de Android.</li>
-        <li>Ve a <span class="stepArrow">Aplicaciones → [tu navegador] → Permisos</span>.</li>
-        <li>Permite <strong>Micrófono</strong> y <strong>Cámara</strong>.</li>
-        <li>También puedes tocar el <strong>candado</strong> junto a la barra de direcciones en el navegador
-            → <strong>Permisos</strong> → permitir Micrófono y Cámara.</li>
-        <li><strong>Recarga la página.</strong></li>
+        <li>Open <span class="stepArrow">Settings → Apps → [your browser] → Permissions</span> and allow <strong>Microphone</strong> and <strong>Camera</strong>.</li>
+        <li>In the browser, open the <strong>site controls</strong> beside the address bar → <strong>Permissions</strong>. Change Camera and Microphone from <strong>Block</strong> to <strong>Allow</strong>, or reset the site's permissions.</li>
+        <li>Return here and tap <strong>Retry camera &amp; microphone</strong>.</li>
       </ol>
     </div>
 
     <div id="helpGeneric" class="helpSection">
-      <h3>Otros dispositivos</h3>
+      <h3>Other devices</h3>
       <ol>
-        <li>En la barra de direcciones del navegador, toca el icono del <strong>candado</strong> (o del
-            <strong>sitio</strong>).</li>
-        <li>Permite el acceso a <strong>Cámara</strong> y <strong>Micrófono</strong>.</li>
-        <li>Comprueba también los ajustes de privacidad del sistema operativo para este navegador.</li>
-        <li><strong>Recarga la página.</strong></li>
+        <li>Open this site's controls from the icon beside the address bar, then open <strong>Site settings</strong> or <strong>Permissions</strong>.</li>
+        <li>Set <strong>Camera</strong> and <strong>Microphone</strong> to <strong>Allow</strong> or <strong>Ask</strong>. If either is blocked, reset that permission or remove the saved block.</li>
+        <li>In Safari, use <span class="stepArrow">Safari → Settings for This Website → Camera / Microphone</span>. In Chrome or Edge, use <span class="stepArrow">Site settings → Camera / Microphone</span>.</li>
+        <li>Also check your operating system's privacy settings for this browser.</li>
+        <li>Return here and tap <strong>Retry camera &amp; microphone</strong>.</li>
       </ol>
     </div>
 
     <div class="closeRow">
-      <button id="helpRetryBtn" type="button" class="primary">Ya lo he hecho — reintentar</button>
-      <button id="helpCloseBtn" type="button">Cerrar</button>
+      <button id="helpRetryBtn" type="button" class="primary">I've changed the settings — retry</button>
+      <button id="helpCloseBtn" type="button">Close</button>
     </div>
   </div>
 </div>
@@ -1440,7 +1426,6 @@
   }
 
   /* ---------------- help modal ---------------- */
-  var helpAutoShown = false;
   function openHelpModal() {
     var os = detectOS();
     els.helpBrowserName.textContent = detectBrowserName();
@@ -1464,6 +1449,10 @@
   function hideSettingsWarning() { els.settingsWarn.classList.remove('show'); }
   function isPermissionError(err) {
     if (!err) return false;
+    if (err.mediaResults) {
+      return isPermissionError(err.mediaResults.camera.error) ||
+             isPermissionError(err.mediaResults.microphone.error);
+    }
     var n = err.name || '';
     return n === 'NotAllowedError' || n === 'PermissionDeniedError' ||
            /not allowed by the user agent|permission denied|denied permission/i.test(err.message || '');
@@ -1471,14 +1460,17 @@
   function maybeShowSettingsHelp(err) {
     if (!isPermissionError(err)) return;
     showSettingsWarning();
-    if (!helpAutoShown) { helpAutoShown = true; openHelpModal(); }
+    if (els.helpModal.hidden) openHelpModal();
   }
   function checkInitialPermissions() {
     if (!navigator.permissions || !navigator.permissions.query) return;
     ['camera', 'microphone'].forEach(function (name) {
       try {
         navigator.permissions.query({ name: name }).then(function (p) {
-          if (p.state === 'denied') showSettingsWarning();
+          if (p.state === 'denied') {
+            showSettingsWarning();
+            if (els.helpModal.hidden) openHelpModal();
+          }
         }).catch(function () {});
       } catch (e) {}
     });
@@ -1612,22 +1604,54 @@
   });
 
   /* ---------------- local media ---------------- */
-  function mediaErrorMessage(err) {
-    switch (err && err.name) {
+  function mediaFailureReason(err) {
+    var name = err && err.name ? err.name : 'Error';
+    var reason;
+    switch (name) {
       case 'NotAllowedError':
       case 'PermissionDeniedError':
-        return 'Camera/microphone permission was denied. Allow access in the browser\'s address-bar or settings, then try again.';
+        reason = 'Access was denied. If you pressed “Never allow” or “Block”, that saved browser choice is likely preventing access; change or reset this site’s Camera and Microphone permissions in browser settings, then retry. The operating system or an organization policy may also block access.';
+        break;
       case 'NotFoundError':
       case 'DevicesNotFoundError':
-        return 'No camera or microphone was found on this device.';
+        reason = 'No matching device was found.';
+        break;
       case 'NotReadableError':
       case 'TrackStartError':
-        return 'Your camera or microphone is already in use by another app. Close it and try again.';
+        reason = 'The browser could not start or read this device. It may be busy or unavailable; browsers do not disclose which app is using it.';
+        break;
       case 'OverconstrainedError':
-        return 'No camera/microphone matches the requested settings.';
+        reason = 'The selected device or its settings are unavailable.';
+        break;
+      case 'AbortError':
+        reason = 'The browser or operating system aborted the device request.';
+        break;
+      case 'SecurityError':
+        reason = 'The browser security policy blocked access.';
+        break;
       default:
-        return 'Could not access camera/microphone: ' + (err && err.message ? err.message : 'unknown error.');
+        reason = 'The browser could not provide access.';
+        break;
     }
+    return name + ': ' + reason + (err && err.message ? ' Browser detail: ' + err.message : '');
+  }
+
+  function mediaErrorMessage(err) {
+    if (err && err.mediaResults) {
+      var results = err.mediaResults;
+      function describe(label, result) {
+        if (result.track) return label + ': access granted.';
+        var detail = mediaFailureReason(result.error);
+        if (result.attempts && result.attempts.length > 1) {
+          detail += ' Attempts: ' + result.attempts.map(errText).join(' | ');
+        }
+        return label + ': ' + detail;
+      }
+      return 'Camera and microphone access are both required to join.\n' +
+        describe('Camera', results.camera) + '\n' +
+        describe('Microphone', results.microphone);
+    }
+    return mediaFailureReason(err);
   }
   function camLog(msg) {
     console.log('[cam] ' + msg);
@@ -1637,29 +1661,6 @@
   }
 
   function acquireCamera() {
-    var AUDIO_DEFAULT = { echoCancellation: true, noiseSuppression: true };
-    var audioPreferred = selectedMicId
-      ? { deviceId: { exact: selectedMicId }, echoCancellation: true, noiseSuppression: true }
-      : AUDIO_DEFAULT;
-    var videoPreferred = selectedCamId
-      ? { deviceId: { exact: selectedCamId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-      : { facingMode: { ideal: 'user' }, width: { ideal: 1280 }, height: { ideal: 720 } };
-
-    var attempts = [];
-    if (selectedMicId || selectedCamId) {
-      attempts.push({ name: 'Preferred devices', a: audioPreferred, v: videoPreferred });
-    }
-    attempts = attempts.concat([
-      { name: 'A+V 1280x720 front', a: AUDIO_DEFAULT, v: { facingMode: { ideal: 'user' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
-      { name: 'A+V 1280x720 back', a: AUDIO_DEFAULT, v: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
-      { name: 'A+V 640x480 any', a: AUDIO_DEFAULT, v: { width: { ideal: 640 }, height: { ideal: 480 } } },
-      { name: 'A+V default', a: true, v: true },
-      { name: 'video-only preferred', a: false, v: selectedCamId ? { deviceId: { exact: selectedCamId } } : true },
-      { name: 'video-only back', a: false, v: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
-      { name: 'video-only front', a: false, v: { facingMode: { ideal: 'user' } } },
-      { name: 'video-only default', a: false, v: true }
-    ]);
-
     function logEnv() {
       var inFrame = false;
       try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
@@ -1679,54 +1680,68 @@
     }
     logEnv();
 
-    function logDevices(when) {
-      if (!navigator.mediaDevices.enumerateDevices) return;
-      navigator.mediaDevices.enumerateDevices().then(function (ds) {
-        var cams = ds.filter(function (d) { return d.kind === 'videoinput'; }).length;
-        var mics = ds.filter(function (d) { return d.kind === 'audioinput'; }).length;
-        camLog('Devices ' + when + ': ' + cams + ' camera(s), ' + mics + ' mic(s)');
-      }).catch(function () {});
-    }
-    logDevices('before');
+    function requestDevice(kind, preferredId) {
+      var isCamera = kind === 'videoinput';
+      var preferred = isCamera
+        ? { audio: false, video: { deviceId: { exact: preferredId }, width: { ideal: 1280 }, height: { ideal: 720 } } }
+        : { audio: { deviceId: { exact: preferredId }, echoCancellation: true, noiseSuppression: true }, video: false };
+      var fallback = isCamera
+        ? { audio: false, video: { width: { ideal: 1280 }, height: { ideal: 720 } } }
+        : { audio: { echoCancellation: true, noiseSuppression: true }, video: false };
+      var constraints = preferredId ? [preferred, fallback] : [fallback];
+      var failures = [];
 
-    var i = 0, lastErr = null;
-    function tryNext() {
-      if (i >= attempts.length) {
-        logDevices('after (all failed)');
-        return Promise.reject(lastErr || new Error('No camera available'));
+      function tryConstraint(index) {
+        return Promise.resolve().then(function () {
+          return navigator.mediaDevices.getUserMedia(constraints[index]);
+        }).then(function (stream) {
+          var track = isCamera ? stream.getVideoTracks()[0] : stream.getAudioTracks()[0];
+          stream.getTracks().forEach(function (otherTrack) {
+            if (otherTrack !== track) otherTrack.stop();
+          });
+          if (!track) {
+            var missingTrack = new Error('The browser returned a stream without the requested device.');
+            missingTrack.name = 'NotFoundError';
+            failures.push(missingTrack);
+            return { error: missingTrack, attempts: failures };
+          }
+          return { track: track };
+        }, function (err) {
+          failures.push(err);
+          camLog('FAIL ' + (isCamera ? 'camera' : 'microphone') + ' attempt ' +
+            (index + 1) + ' -> ' + errText(err));
+          if (index + 1 < constraints.length && !isPermissionError(err)) {
+            return tryConstraint(index + 1);
+          }
+          return { error: err, attempts: failures };
+        });
       }
-      var a = attempts[i++];
-      return navigator.mediaDevices.getUserMedia({ audio: a.a, video: a.v }).then(function (s) {
-        var track = s.getVideoTracks()[0];
-        var st = (track && track.getSettings) ? track.getSettings() : {};
-        camLog('OK ' + a.name + ' -> ' + (st.width || '?') + 'x' + (st.height || '?') +
-          (s.getAudioTracks().length ? ' +mic' : ' (no mic)'));
-        logDevices('after');
-        return s;
-      }, function (err) {
-        lastErr = err;
-        camLog('FAIL ' + a.name + ' -> ' + errText(err));
-        return tryNext();
-      });
+      return tryConstraint(0);
     }
-    return tryNext();
-  }
 
-  function withTimeout(promise, ms) {
-    return new Promise(function (resolve, reject) {
-      var settled = false;
-      var timer = setTimeout(function () {
-        if (settled) return;
-        settled = true;
-        reject(new Error('TIMEOUT'));
-      }, ms);
-      promise.then(function (v) {
-        if (settled) return;
-        settled = true; clearTimeout(timer); resolve(v);
-      }, function (e) {
-        if (settled) return;
-        settled = true; clearTimeout(timer); reject(e);
-      });
+    var results = {};
+    return requestDevice('videoinput', selectedCamId).then(function (camera) {
+      results.camera = camera;
+      return requestDevice('audioinput', selectedMicId);
+    }).then(function (microphone) {
+      results.microphone = microphone;
+      if (results.camera.error || results.microphone.error) {
+        if (results.camera.track) results.camera.track.stop();
+        if (results.microphone.track) results.microphone.track.stop();
+        var firstError = results.camera.error || results.microphone.error;
+        var accessError = new Error();
+        accessError.name = firstError.name || 'MediaAccessError';
+        accessError.mediaResults = results;
+        accessError.message = mediaErrorMessage(accessError);
+        throw accessError;
+      }
+      var stream = new MediaStream();
+      stream.addTrack(results.camera.track);
+      stream.addTrack(results.microphone.track);
+      var cameraSettings = results.camera.track.getSettings ? results.camera.track.getSettings() : {};
+      camLog('OK camera -> ' + (cameraSettings.width || '?') + 'x' + (cameraSettings.height || '?'));
+      camLog('OK microphone');
+      return stream;
     });
   }
 
@@ -1734,7 +1749,7 @@
   function getMedia() {
     if (localStream) return Promise.resolve(localStream);
     if (mediaPromise) return mediaPromise;
-    mediaPromise = withTimeout(acquireCamera(), 20000).then(function (stream) {
+    mediaPromise = acquireCamera().then(function (stream) {
       mediaPromise = null;
       localStream = stream;
       camTrack = stream.getVideoTracks()[0];
@@ -1751,10 +1766,7 @@
       return stream;
     }, function (err) {
       mediaPromise = null;
-      if (err && err.message === 'TIMEOUT') {
-        throw new Error('The camera/microphone request timed out without showing a prompt. Make sure this page is open directly in your browser (not inside another app\'s built-in browser), then tap the button below to try again.');
-      }
-      throw new Error(mediaErrorMessage(err));
+      throw err;
     });
     return mediaPromise;
   }
@@ -1868,20 +1880,20 @@
 
   /* ---------------- request camera/mic ---------------- */
   function showMicState() {
-    if (micTrack) {
+    if (micTrack && camTrack) {
       els.mediaStatus.textContent = '\u2713 Camera & microphone ready.';
       els.enableMediaBtn.hidden = true;
       hideSettingsWarning();
     } else {
-      els.mediaStatus.textContent = 'Camera ready, but the microphone is blocked or unavailable \u2014 others won\'t hear you. Tap "Retry microphone" for help.';
-      els.enableMediaBtn.textContent = 'Retry microphone';
+      els.mediaStatus.textContent = 'Both camera and microphone access are required to join. Tap to retry access.';
+      els.enableMediaBtn.textContent = 'Retry camera & microphone';
       els.enableMediaBtn.disabled = false;
       els.enableMediaBtn.hidden = false;
     }
   }
 
   function requestMedia() {
-    els.enableMediaBtn.textContent = 'Enable camera & microphone';
+    els.enableMediaBtn.textContent = 'Grant camera & microphone access';
     els.enableMediaBtn.disabled = true;
     els.mediaStatus.textContent = 'Requesting camera & microphone access\u2026';
     return getMedia().then(function () {
@@ -1890,7 +1902,7 @@
     }, function (err) {
       els.enableMediaBtn.disabled = false;
       els.enableMediaBtn.hidden = false;
-      els.mediaStatus.textContent = err.message;
+      els.mediaStatus.textContent = mediaErrorMessage(err);
       maybeShowSettingsHelp(err);
       throw err;
     });
@@ -2171,6 +2183,10 @@
     }).catch(function (err) {
       console.error(err);
       lobbyError(err.message);
+      if (err && err.mediaResults) {
+        els.mediaStatus.textContent = mediaErrorMessage(err);
+        maybeShowSettingsHelp(err);
+      }
       resetCreateUI();
       peer = null;
     });
